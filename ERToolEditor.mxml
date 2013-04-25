@@ -1,0 +1,3011 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:esri="http://www.esri.com/2008/ags"
+				   xmlns:viewer="com.esri.viewer.*"
+				   widgetConfigLoaded="init()">
+	
+	<viewer:states>
+		<s:State name="homeState"/>
+		<s:State name="editIncidentState"/>
+		<s:State name="editCordonState"/>
+		<s:State name="editFafcilityStatusState"/>
+		<s:State name="editBlockadeState"/>
+		<s:State name="buildingsReportState"/>
+		<s:State name="blockadesReportState" />
+		<s:State name="addPlumeState" />
+	</viewer:states>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.FeatureSet;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.components.supportClasses.Template;
+			import com.esri.ags.events.DrawEvent;
+			import com.esri.ags.events.EditEvent;
+			import com.esri.ags.events.FeatureLayerEvent;
+			import com.esri.ags.events.GeometryServiceEvent;
+			import com.esri.ags.events.GraphicEvent;
+			import com.esri.ags.events.LayerEvent;
+			import com.esri.ags.events.MapMouseEvent;
+			import com.esri.ags.geometry.Extent;
+			import com.esri.ags.geometry.Geometry;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.geometry.Polygon;
+			import com.esri.ags.geometry.Polyline;
+			import com.esri.ags.layers.ArcGISDynamicMapServiceLayer;
+			import com.esri.ags.layers.FeatureLayer;
+			import com.esri.ags.layers.supportClasses.TimeReference;
+			import com.esri.ags.tasks.GeometryServiceSingleton;
+			import com.esri.ags.tasks.QueryTask;
+			import com.esri.ags.tasks.supportClasses.BufferParameters;
+			import com.esri.ags.tasks.supportClasses.ProjectParameters;
+			import com.esri.ags.tasks.supportClasses.Query;
+			import com.esri.ags.tasks.supportClasses.RelationParameters;
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.ags.utils.StringUtil;
+			import com.esri.ags.utils.WebMercatorUtil;
+			
+			import flash.globalization.DateTimeFormatter;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.collections.XMLListCollection;
+			import mx.controls.Alert;
+			import mx.events.DataGridEvent;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.rpc.AsyncResponder;
+			import mx.rpc.Responder;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.xml.SimpleXMLDecoder;
+			import mx.rpc.xml.SimpleXMLEncoder;
+			import mx.utils.ObjectUtil;
+			import mx.utils.StringUtil;
+			import mx.utils.UIDUtil;
+			
+			import org.vanrijkom.dbf.DbfField;
+			import org.vanrijkom.dbf.DbfHeader;
+			import org.vanrijkom.dbf.DbfRecord;
+			import org.vanrijkom.dbf.DbfTools;
+			
+			import spark.events.IndexChangeEvent;
+			
+			import widgets.ShapeFiles.ShpHeader;
+			import widgets.ShapeFiles.ShpLine;
+			import widgets.ShapeFiles.ShpPoint;
+			import widgets.ShapeFiles.ShpPolygon;
+			import widgets.ShapeFiles.ShpReader;
+			import widgets.ShapeFiles.nochump.util.zip.ZipEntry;
+			import widgets.ShapeFiles.nochump.util.zip.ZipFile; 
+
+			
+			//tool image classes
+			[Bindable]
+			[Embed("assets/images/ertool/b_addevent_default.png")]
+			private var imgAddIncidentClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addevent_hover.png")]
+			private var imgAddIncidentClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addevent_selected.png")]
+			private var imgAddIncidentClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_addcordon_default.png")]
+			private var imgAddCordonClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addcordon_hover.png")]
+			private var imgAddCordonClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addcordon_selected.png")]
+			private var imgAddCordonClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_addfacstatus_default.png")]
+			private var imgAddFacilClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addfacstatus_hover.png")]
+			private var imgAddFacilClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addfacstatus_selected.png")]
+			private var imgAddFacilClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_editfacstatus_default.png")]
+			private var imgEditFacilClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_editfacstatus_hover.png")]
+			private var imgEditFacilClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_editfacstatus_selected.png")]
+			private var imgEditFacilClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_tcp_default.png")]
+			private var imgAddBlockadeClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_tcp_hover.png")]
+			private var imgAddBlockadeClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_tcp_selected.png")]
+			private var imgAddBlockadeClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_addroute_default.png")]
+			private var imgAddRouteClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addroute_hover.png")]
+			private var imgAddRouteClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addroute_selected.png")]
+			private var imgAddRouteClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_addaloha_default.png")]
+			private var imgAddPlumeClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addaloha_hover.png")]
+			private var imgAddPlumeClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addaloha_selected.png")]
+			private var imgAddPlumeClass_Selected:Class;
+			
+			[Bindable]
+			[Embed("assets/images/ertool/b_addcordon_default.png")]
+			private var imgDrawCordonClass:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addcordon_hover.png")]
+			private var imgDrawCordonClass_Hover:Class;
+			[Bindable]
+			[Embed("assets/images/ertool/b_addcordon_selected.png")]
+			private var imgDrawCordonClass_Selected:Class;
+			
+			[Bindable]
+			private var selectedTool:Image;
+			
+			[Bindable]
+			private var selectedGraphic:Graphic = null;
+			
+			[Bindable]
+			private var buildingsLayerURL:String = "http://afsoc01/ArcGIS/rest/services/AFSOC_FGB/MapServer/4";
+			[Bindable]
+			private var roadsLayerURL:String = "http://afsoc01/ArcGIS/rest/services/AFSOC_FGB/MapServer/50";
+			
+			private var incidentService:ArcGISDynamicMapServiceLayer;
+			private var bNumsService:ArcGISDynamicMapServiceLayer;
+			
+			private var bNumsServiceURL:String;
+			
+			private var erServiceURL:String;
+			private var erIncidentPointURL:String;
+			private var erBlockadesURL:String;
+			private var erAlohaFootprintURL:String;
+			private var erSafeRouteURL:String;
+			private var erFacilityStatusURL:String;
+			private var erCordonPolyURL:String;
+			
+			private var acesfdURL:String;
+			[Bindable]
+			private var fdSupported:Boolean;
+			
+			//context menu variables
+			private var incidentContextMenu:ContextMenu;
+			private var cordonContextMenu:ContextMenu;
+			private var facilityContextMenu:ContextMenu;
+			private var blockadeContextMenu:ContextMenu;
+			private var saferouteContextMenu:ContextMenu;
+			private var plumeContextMenu:ContextMenu;
+			
+			private var roadNameField:String;
+			
+			private var defaultCordonSize:Number = 500;
+			
+			private var pointBuffer:Number;
+			
+			private var acesEventLogUrl:String;
+			
+			private var drawingComplete:Boolean;
+			private var doNotAddFeature:Boolean;
+			
+			[Bindable]
+			private var incidentLayer:FeatureLayer;
+			[Bindable]
+			private var blockadeLayer:FeatureLayer;
+			[Bindable]
+			private var saferouteLayer:FeatureLayer;
+			[Bindable]
+			private var facstatusLayer:FeatureLayer;
+			[Bindable]
+			private var cordonLayer:FeatureLayer;
+			[Bindable]
+			private var plumeLayer:FeatureLayer;
+			
+			[Bindable]
+			private var currentIncidentGraphic:Graphic;
+			[Bindable]
+			private var editCordonGraphic:Graphic;
+			[Bindable]
+			private var editBlockadeGraphic:Graphic;
+			[Bindable]
+			private var editFacilGraphic:Graphic;
+			[Bindable]
+			private var editFacilMultiple:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			public var facStatusArray:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			public var blockadesArray:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var inactiveEvents:ArrayList = new ArrayList();
+			
+			[Bindable]
+			private var buildings:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var acesfdEvents:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var acesfdEventsBldgs:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var statusCollection:ArrayCollection = new ArrayCollection(
+				[   {label:"Pending", data:"PENDING"}, //default
+					{label:"Active",  data:"ACTIVE"},
+					{label:"Inactive",data:"INACTIVE"}  ]);
+			
+			[Bindable]
+			private var blockadeInfo:ArrayList;
+			
+			[Bindable]
+			public var blockadeTypes:Array = new Array();
+			
+			[Bindable]
+			public var facilityTypes:ArrayList;
+			
+			private var activateInactiveEvent:Boolean = false;
+			private var inactive_incidentId:String = "";
+			private var activateCompleteCollection:ArrayCollection = new ArrayCollection();
+			
+			private var selectedIncidents:ArrayCollection = new ArrayCollection();
+			private var selectedBuildings:ArrayCollection = new ArrayCollection();
+			private var selectedBlockades:ArrayCollection = new ArrayCollection();
+			
+			private var m_fileReference:FileReference; //for plume shape zip file
+			private var m_fileReference2:FileReference; //for plume kml file from Cobra
+			
+
+			private function init():void
+			{
+				
+				if (configXML)
+				{
+					/* if (GeometryServiceSingleton.instance.url) // using GeometryServiceSingleton
+					{
+						geometryService.url = GeometryServiceSingleton.instance.url;
+						geometryService.token = GeometryServiceSingleton.instance.token;
+						geometryService.proxyURL = GeometryServiceSingleton.instance.proxyURL;
+					}
+					else  */if (configXML.geometryservice.length() > 0) // look in widget's config if not using GeometryServiceSingleton
+					{
+						geometryService.url = configXML.geometryservice;
+					}
+					
+					if (configXML.erserviceurl.length() > 0)
+						erServiceURL = configXML.erserviceurl;
+					
+					if (configXML.buildingnumbersurl.length() > 0)
+						bNumsServiceURL = configXML.buildingnumbersurl;
+					
+					if (Number(configXML.defaultcordonsize) > 0)
+						defaultCordonSize = Number(configXML.defaultcordonsize);
+					
+					if (configXML.buildingslayerurl.length() > 0)
+						buildingsLayerURL = configXML.buildingslayerurl;
+					
+					if (configXML.roadslayerurl.length() > 0)
+						roadsLayerURL = configXML.roadslayerurl;
+					
+					if (configXML.roadnamefield.length() > 0)
+						roadNameField = configXML.roadnamefield;
+					
+					if (Number(configXML.pointbuffer) > 0)
+						pointBuffer = Number(configXML.pointbuffer);
+					
+					if (configXML.aceseventlogurl.length() > 0)
+						acesEventLogUrl = configXML.aceseventlogurl;
+					
+					if (configXML.erincidentpointurl.length() > 0)
+						erIncidentPointURL = configXML.erincidentpointurl;
+					
+					if (configXML.erblockadesurl.length() > 0)
+						erBlockadesURL = configXML.erblockadesurl;
+					
+					if (configXML.eralohafootprinturl.length() > 0)
+						erAlohaFootprintURL = configXML.eralohafootprinturl;
+					
+					if (configXML.ersaferouteurl.length() > 0)
+						erSafeRouteURL = configXML.ersaferouteurl;
+					
+					if (configXML.erfacilitystatusurl.length() > 0)
+						erFacilityStatusURL = configXML.erfacilitystatusurl;
+					
+					if (configXML.ercordonpolyurl.length() > 0)
+						erCordonPolyURL = configXML.ercordonpolyurl;
+					
+					if (configXML.acesfdurl.length() > 0)
+						acesfdURL = configXML.acesfdurl;
+					if (configXML.acesfdsupported.length() > 0)
+					{
+						if (configXML.acesfdsupported.toUpperCase()=="TRUE")
+							fdSupported = true;
+						else
+							fdSupported = false;
+					} else
+						fdSupported = false;
+					
+				}
+				
+				//build blockade symbol objects
+				var i:Number;
+				var blockadeList:XMLList = configXML..blockade;
+				blockadeInfo = new ArrayList();
+				for (i = 0; i < blockadeList.length(); i++)
+				{
+					var bType:String = blockadeList[i].@type;
+					var bDesc:String = blockadeList[i].@description;
+					var blockadeObj:Object = 
+						{
+							label: bDesc,
+							type: bType
+						}
+					blockadeInfo.addItem(blockadeObj);
+					blockadeTypes.push(bType);
+				}
+				cboBlockadeType.dataProvider = blockadeInfo;
+				
+				facilityTypes = new ArrayList();
+				var facilCordonedObj:Object = 
+					{
+						label: "Cordoned",
+						status: "CORDONED"
+					}
+				facilityTypes.addItem(facilCordonedObj);
+				var facilNotifiedObj:Object = 
+					{
+						label: "Notified",
+						status: "NOTIFIED"
+					}
+				facilityTypes.addItem(facilNotifiedObj);
+				var facilEvacuatedObj:Object = 
+					{
+						label: "Evacuated",
+						status: "EVACUATED"
+					}
+				facilityTypes.addItem(facilEvacuatedObj);
+				var facilAllClearObj:Object = 
+					{
+						label: "All Clear",
+						status: "ALL_CLEAR"
+					}
+				facilityTypes.addItem(facilAllClearObj);
+				var facilShelterObj:Object = 
+					{
+						label: "Shelter in Place",
+						status: "SHELTER"
+					}
+				facilityTypes.addItem(facilShelterObj);
+				cboFacilStatus.dataProvider = facilityTypes;
+				
+				buildContextMenus();
+				
+				incidentService = new ArcGISDynamicMapServiceLayer();
+				if (erServiceURL!=null)
+					incidentService.url = erServiceURL;
+				else
+					incidentService.url = "http://afsoc01/ArcGIS/rest/services/ER_Tool_Admin/MapServer";
+				
+				incidentService.name = "ER Tool";
+				
+				bNumsService = new ArcGISDynamicMapServiceLayer();
+				if (bNumsServiceURL!=null)
+					bNumsService.url = bNumsServiceURL;
+				bNumsService.imageFormat = "png32";
+				bNumsService.name = "Building Numbers";
+				
+				//define new feature layers
+				incidentLayer = new FeatureLayer(erIncidentPointURL);
+				incidentLayer.name = "INCIDENT_POINT";
+				incidentLayer.mode = FeatureLayer.MODE_ON_DEMAND;
+				incidentLayer.outFields = ["*"];
+				//incidentLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				incidentLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,flayer_editsCompleteHandler);
+				incidentLayer.addEventListener(GraphicEvent.GRAPHIC_ADD, fLayer_graphicAddHandler);
+				incidentLayer.addEventListener(FaultEvent.FAULT,flayer_faultHandler);
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+				incidentLayer.addEventListener(LayerEvent.UPDATE_END, hideInactive);
+				incidentLayer.contextMenu = incidentContextMenu;
+				//incidentLayer.definitionExpression = "INCIDNT_ID='3796070a-09f4-4978-ade1-30d0682849f7'"; 
+				
+				blockadeLayer = new FeatureLayer(erBlockadesURL);
+				blockadeLayer.name = "BLOCKADES";
+				blockadeLayer.mode = FeatureLayer.MODE_ON_DEMAND;
+				blockadeLayer.outFields = ["*"];
+				blockadeLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				blockadeLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,flayer_editsCompleteHandler);
+				blockadeLayer.addEventListener(GraphicEvent.GRAPHIC_ADD, fLayer_graphicAddHandler);
+				blockadeLayer.addEventListener(LayerEvent.UPDATE_END, hideInactive);
+				blockadeLayer.addEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				blockadeLayer.contextMenu = blockadeContextMenu;
+				//blockadeLayer.definitionExpression = "INCIDNT_ID='3796070a-09f4-4978-ade1-30d0682849f7'"; 
+				
+				saferouteLayer = new FeatureLayer(erSafeRouteURL);
+				saferouteLayer.name = "SAFE_ROUTE";
+				saferouteLayer.mode = FeatureLayer.MODE_ON_DEMAND;
+				saferouteLayer.outFields = ["*"];
+				saferouteLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				saferouteLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,flayer_editsCompleteHandler);
+				saferouteLayer.addEventListener(GraphicEvent.GRAPHIC_ADD, fLayer_graphicAddHandler);
+				saferouteLayer.addEventListener(LayerEvent.UPDATE_END, hideInactive);
+				saferouteLayer.contextMenu = saferouteContextMenu;
+				//saferouteLayer.definitionExpression = "INCIDNT_ID='3796070a-09f4-4978-ade1-30d0682849f7'"; 
+				
+				facstatusLayer = new FeatureLayer(erFacilityStatusURL);
+				facstatusLayer.name = "FACILITY_STATUS";
+				facstatusLayer.mode = FeatureLayer.MODE_ON_DEMAND;
+				facstatusLayer.outFields = ["*"];
+				facstatusLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				facstatusLayer.alpha = 0.5;
+				facstatusLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,flayer_editsCompleteHandler);
+				facstatusLayer.addEventListener(GraphicEvent.GRAPHIC_ADD, fLayer_graphicAddHandler);
+				facstatusLayer.addEventListener(FaultEvent.FAULT,flayer_faultHandler);
+				facstatusLayer.addEventListener(LayerEvent.UPDATE_END, hideInactive);
+				facstatusLayer.contextMenu = facilityContextMenu;
+				//facstatusLayer.definitionExpression = "INCIDNT_ID='3796070a-09f4-4978-ade1-30d0682849f7'"; 
+				
+				cordonLayer = new FeatureLayer(erCordonPolyURL);
+				cordonLayer.name = "CORDONPOLY";
+				cordonLayer.mode = FeatureLayer.MODE_ON_DEMAND;
+				cordonLayer.outFields = ["*"];
+				cordonLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				cordonLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,flayer_editsCompleteHandler);
+				cordonLayer.addEventListener(GraphicEvent.GRAPHIC_ADD, fLayer_graphicAddHandler);
+				cordonLayer.addEventListener(FaultEvent.FAULT,flayer_faultHandler);
+				cordonLayer.addEventListener(LayerEvent.UPDATE_END, hideInactive);
+				cordonLayer.contextMenu = cordonContextMenu;
+				//cordonLayer.definitionExpression = "INCIDNT_ID='3796070a-09f4-4978-ade1-30d0682849f7'"; 
+				
+				plumeLayer = new FeatureLayer(erAlohaFootprintURL);
+				plumeLayer.name = "PLUME";
+				plumeLayer.mode = FeatureLayer.MODE_ON_DEMAND;
+				plumeLayer.outFields = ["*"];
+				plumeLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				plumeLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,flayer_editsCompleteHandler);
+				plumeLayer.addEventListener(GraphicEvent.GRAPHIC_ADD, fLayer_graphicAddHandler);
+				plumeLayer.addEventListener(LayerEvent.UPDATE_END, hideInactive);
+				plumeLayer.contextMenu = plumeContextMenu;
+				
+				map.addLayer(cordonLayer); //on bottom
+				map.addLayer(plumeLayer);
+				map.addLayer(facstatusLayer);
+				map.addLayer(saferouteLayer);
+				map.addLayer(blockadeLayer);
+				map.addLayer(incidentLayer);  //on top
+				
+				//if (bNumsService)
+					//map.addLayer(bNumsService);
+				
+				//used for tracking activation of inactive events
+				var cordObj:Object = {layer:cordonLayer,updated:false};
+				var facObj:Object = {layer:facstatusLayer,updated:false};
+				var safeObj:Object = {layer:saferouteLayer,updated:false};
+				var plumeObj:Object = {layer:plumeLayer,updated:false};
+				var blockObj:Object = {layer:blockadeLayer,updated:false};
+				var incObj:Object = {layer:incidentLayer,updated:false};
+				activateCompleteCollection.addItem(cordObj);
+				activateCompleteCollection.addItem(facObj);
+				activateCompleteCollection.addItem(safeObj);
+				activateCompleteCollection.addItem(plumeObj);
+				activateCompleteCollection.addItem(blockObj);
+				activateCompleteCollection.addItem(incObj);
+				
+				loadBuildingsDDL();
+				loadFDEvents();
+			}
+			
+			private function buildContextMenus():void
+			{
+				//incident context menu
+				incidentContextMenu = new ContextMenu();
+				incidentContextMenu.hideBuiltInItems();
+				var menuItemEditIncidentInfo:ContextMenuItem = new ContextMenuItem("Edit Incident Info.");
+				menuItemEditIncidentInfo.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, editIncidentInfo);
+				incidentContextMenu.customItems.push(menuItemEditIncidentInfo);
+				var menuItemDeleteIncident:ContextMenuItem = new ContextMenuItem("Delete Incident");
+				menuItemDeleteIncident.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, deleteIncident);
+				incidentContextMenu.customItems.push(menuItemDeleteIncident);
+				var menuItemAddCordon:ContextMenuItem = new ContextMenuItem("Add Cordon to this Incident");
+				menuItemAddCordon.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, addCordon);
+				incidentContextMenu.customItems.push(menuItemAddCordon);
+				var menuItemBuildingsReport:ContextMenuItem = new ContextMenuItem("View Buildings Report for this Incident");
+				menuItemBuildingsReport.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, showBuildingsReport);
+				incidentContextMenu.customItems.push(menuItemBuildingsReport);
+				var menuItemBlockadesReport:ContextMenuItem = new ContextMenuItem("View Blockades Report for this Incident");
+				menuItemBlockadesReport.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, showBlockadesReport);
+				incidentContextMenu.customItems.push(menuItemBlockadesReport);
+				var menuItemPublishChanges:ContextMenuItem = new ContextMenuItem("Activate Entire Event (Publish to ReadOnly Viewer)");
+				menuItemPublishChanges.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, activateEntireEvent);
+				incidentContextMenu.customItems.push(menuItemPublishChanges);
+				var menuItemArchiveIncident:ContextMenuItem = new ContextMenuItem("Archive/Deactivate Event");
+				menuItemArchiveIncident.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, archiveEvent);
+				incidentContextMenu.customItems.push(menuItemArchiveIncident);
+				
+				//cordon context menu
+				cordonContextMenu = new ContextMenu();
+				cordonContextMenu.hideBuiltInItems();
+				var menuItemEditCordon:ContextMenuItem = new ContextMenuItem("Edit Cordon");
+				menuItemEditCordon.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, editCordon);
+				cordonContextMenu.customItems.push(menuItemEditCordon);
+				var menuItemDeleteCordon:ContextMenuItem = new ContextMenuItem("Delete Cordon");
+				menuItemDeleteCordon.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, deleteCordon);
+				cordonContextMenu.customItems.push(menuItemDeleteCordon);
+				
+				//facility status context menu
+				facilityContextMenu = new ContextMenu();
+				facilityContextMenu.hideBuiltInItems();
+				var menuItemEditFacility:ContextMenuItem = new ContextMenuItem("Edit Facility Status");
+				menuItemEditFacility.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, editFacility);
+				facilityContextMenu.customItems.push(menuItemEditFacility);
+				var menuItemDeleteFacility:ContextMenuItem = new ContextMenuItem("Remove Facility Status");
+				menuItemDeleteFacility.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, deleteFacility);
+				facilityContextMenu.customItems.push(menuItemDeleteFacility);
+				
+				//blockades context menu
+				blockadeContextMenu = new ContextMenu();
+				blockadeContextMenu.hideBuiltInItems();
+				var menuItemEditBlockade:ContextMenuItem = new ContextMenuItem("Edit Blockade");
+				menuItemEditBlockade.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, editBlockade);
+				blockadeContextMenu.customItems.push(menuItemEditBlockade);
+				var menuItemDeleteBlockade:ContextMenuItem = new ContextMenuItem("Delete Blockade");
+				menuItemDeleteBlockade.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, deleteBlockade);
+				blockadeContextMenu.customItems.push(menuItemDeleteBlockade);
+				
+				//saferoute context menu
+				saferouteContextMenu = new ContextMenu();
+				saferouteContextMenu.hideBuiltInItems();
+				var menuItemDeleteRoute:ContextMenuItem = new ContextMenuItem("Delete Route");
+				menuItemDeleteRoute.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, deleteRoute);
+				saferouteContextMenu.customItems.push(menuItemDeleteRoute);
+				
+				//plume context menu
+				plumeContextMenu = new ContextMenu();
+				plumeContextMenu.hideBuiltInItems();
+				var menuItemDeletePlume:ContextMenuItem = new ContextMenuItem("Delete Plume");
+				menuItemDeletePlume.addEventListener(ContextMenuEvent.MENU_ITEM_SELECT, deletePlume);
+				plumeContextMenu.customItems.push(menuItemDeletePlume);
+				
+				
+			}
+			
+			private function hideInactive(event:LayerEvent):void
+			{
+				//incidentLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+				var fLayer:FeatureLayer = event.layer as FeatureLayer;
+				var graphic:Graphic;
+				trace("activateInactiveEvent: " + activateInactiveEvent.toString());
+				if (activateInactiveEvent)
+				{
+					for each (graphic in fLayer.graphicProvider)
+					{
+						if (graphic.attributes.INCIDNT_ID==inactive_incidentId)
+						{
+							graphic.attributes.USER_FLAG="ACTIVE";
+							applyEdits(graphic);
+						}
+					}
+					//set this layer to updated status
+					for (var i:int=0; i<activateCompleteCollection.length; i++)
+					{
+						var obj:Object = activateCompleteCollection.getItemAt(i);
+						if (obj.layer==fLayer)
+							obj.updated = true;
+					}
+				} 
+				else
+				{
+					var j:int = 0;
+					var fgraphic:Graphic;
+					trace ("flayername: " + fLayer.name);
+					if (fLayer==incidentLayer)
+					{
+						for each (graphic in fLayer.graphicProvider)
+						{
+							if (graphic.attributes.USER_FLAG=="INACTIVE")
+							{
+								var listObj:Object = {label:graphic.attributes.INCIDNT_NAME, data:graphic.attributes.INCIDNT_ID};
+								var addit:Boolean = true;
+								for (var x:int=0; x<cbInactiveEvents.dataProvider.length; x++)
+								{
+									var item:Object = cbInactiveEvents.dataProvider.getItemAt(x);
+									if (item.data == listObj.data)
+										addit=false;
+								}
+								if (addit)//not in list
+									cbInactiveEvents.dataProvider.addItem(listObj);
+							}
+							for (j=0; j<selectedIncidents.length; j++)
+							{
+								fgraphic = selectedIncidents.getItemAt(j) as Graphic;
+								if (fgraphic.attributes.OBJECTID==graphic.attributes.OBJECTID)
+									graphic.filters = [ glowFilter ];
+							}
+						}
+						incidentLayer.definitionExpression = "USER_FLAG != 'INACTIVE'";
+					}
+					if ((fLayer==blockadeLayer)&&(selectedBlockades.length>0))
+					{
+						for each (graphic in fLayer.graphicProvider)
+						{
+							for (j=0; j<selectedBlockades.length; j++)
+							{
+								fgraphic = selectedBlockades.getItemAt(j) as Graphic;
+								if (fgraphic.attributes.OBJECTID==graphic.attributes.OBJECTID)
+									graphic.filters = [ glowFilter ];
+							}
+						}
+					}
+					if ((fLayer==facstatusLayer)&&(selectedBuildings.length>0))
+					{
+						for each (graphic in fLayer.graphicProvider)
+						{
+							for (j=0; j<selectedBuildings.length; j++)
+							{
+								fgraphic = selectedBuildings.getItemAt(j) as Graphic;
+								if (fgraphic.attributes.OBJECTID==graphic.attributes.OBJECTID)
+									graphic.filters = [ glowFilter ];
+							}
+						}
+						
+					}
+				}
+			}
+			
+			private function activateTool(event:MouseEvent):void
+			{
+				addSharedData("Deactivate_DrawTool", null); // to be able to deactivate drawTool on other widgets
+				editTool.deactivate(); //deactivate any blockade moving
+				
+				if (selectedTool!=null)
+					resetToolImage(selectedTool);
+				
+				selectedTool = Image(event.currentTarget);
+				setActiveToolImage(selectedTool);
+				
+				//in case user clicks on incident graphic, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				
+				switch(selectedTool.id)
+				{
+					case "toolImgAddIncident":
+					{
+						setMapAction(selectedTool.name, "Drop an Incident Point", null, addIncidentGraphic);
+						break;
+					}
+					case "toolImgAddFacil":
+					{
+						setMapAction(selectedTool.name, "Draw a box around the buildings to cordon", null, addFacilsToolAction);
+						break;
+					}
+					case "toolImgEditFacil":
+					{
+						setMapAction(selectedTool.name, "Draw a box around the buildings to change status", null, editFacilsToolAction);
+						break;
+					}
+					case "toolImgAddBlockade":
+					{
+						setMapAction(selectedTool.name, "Drop a Blockade Point", null, addBlockadeGraphic);
+						break;
+					}
+					case "toolImgAddRoute":
+					{
+						setMapAction(selectedTool.name, "Draw safe route, double-click to end", null, addSafeRouteGraphic);
+						break;
+					}
+					case "toolImgDrawCordon":
+					{
+						setMapAction(selectedTool.name, "Click to Begin Drawing Cordon", null, drawCordonGraphic);
+						break;
+					}
+				}				
+			}
+			
+			private function loadBuildingsDDL():void
+			{
+				//first query incident_point for all inactive incidents
+				var buildingQueryTask:QueryTask = new QueryTask(buildingsLayerURL);
+				buildingQueryTask.useAMF = false;
+				var bldgQuery:Query = new Query();
+				bldgQuery.outFields = ["FACIL_ID"];
+				bldgQuery.where = "FACIL_ID IS NOT NULL and FACIL_ID<>' ' and FACIL_ID <> 'NO RP' and FACIL_ID <> 'OFFBASE'"//"FACIL_ID IS NOT NULL and REPLACE(FACIL_ID,' ','') is not null" // and upper(INSTALL) ='" + cbInstall.selectedItem.toUpperCase() + "'";
+				bldgQuery.returnGeometry = true;
+				buildingQueryTask.execute(bldgQuery, new AsyncResponder(onBuildingQueryResult, onFault));
+				
+				function onBuildingQueryResult(featureSet:FeatureSet, token:Object = null):void
+				{
+					//Alert.show(featureSet.features.length.toString());
+					buildings.removeAll();
+					for each (var myGraphic:Graphic in featureSet.features)
+					{
+						var poly:Polygon = Polygon(myGraphic.geometry);
+						var listObj:Object = {label:myGraphic.attributes["FACIL_ID"], x:poly.extent.center.x, y:poly.extent.center.y, graphic:myGraphic};
+						//cbBuildings.dataProvider.addItem(listObj);
+						buildings.addItem(listObj);
+					}
+				}
+				
+				//now sort buildings
+				var dataSortField:SortField = new SortField();
+				dataSortField.name = "label";
+				dataSortField.numeric = true;
+				
+				var dataSort:Sort = new Sort();
+				dataSort.fields = [dataSortField];
+				
+				if (buildings)
+				{
+					buildings.sort = dataSort;
+					buildings.refresh();					
+				}
+				
+				function onFault(info:Object, token:Object = null):void
+				{
+					Alert.show(info.faultString + "\n\n" + info.faultDetail, "Load Events Query Fault " + info.faultCode);
+				}
+			}
+			
+			private function loadFDEvents():void
+			{
+				if (fdSupported)
+				{
+					//first query incident_point for all inactive incidents
+					var acesfdQueryTask:QueryTask = new QueryTask(acesfdURL);
+					acesfdQueryTask.useAMF = false;
+					var fdQuery:Query = new Query();
+					fdQuery.outFields = [ "*" ];
+					fdQuery.where = "ACESFD_ID is not null" // and upper(INSTALL) ='" + cbInstall.selectedItem.toUpperCase() + "'";
+					fdQuery.returnGeometry = false;
+					acesfdQueryTask.execute(fdQuery, new AsyncResponder(onFDQueryResult, onFault));
+					
+					function onFDQueryResult(featureSet:FeatureSet, token:Object = null):void
+					{
+						acesfdEvents.removeAll();
+						acesfdEventsBldgs.removeAll();
+						if (featureSet.features.length > 0)
+						{
+							for (var i:int=0; i<featureSet.features.length; i++)
+							{
+								var facil_id:String;
+								var listObj:Object;
+								if (featureSet.features[i].attributes["EVENT_FACILITY_NBR"]!=" ")
+								{
+									facil_id = featureSet.features[i].attributes["EVENT_FACILITY_NBR"].toString();
+									listObj = {acesfd_id:featureSet.features[i].attributes["ACESFD_ID"], label:featureSet.features[i].attributes["EVENT_ICON_TITLE_TX"], facil_id:facil_id};
+									acesfdEventsBldgs.addItem(listObj);
+									acesfdEvents.addItem(listObj);
+								}
+								else
+								{
+									facil_id = null;
+									listObj = {acesfd_id:featureSet.features[i].attributes["ACESFD_ID"], label:featureSet.features[i].attributes["EVENT_ICON_TITLE_TX"], facil_id:facil_id};
+									acesfdEvents.addItem(listObj);
+								}
+							}
+						}
+					}
+					cbEditAcesFd.dataProvider = acesfdEvents;
+					cbAddAcesFd.dataProvider = acesfdEventsBldgs;
+					
+					function onFault(info:Object, token:Object = null):void
+					{
+						Alert.show(info.faultString + "\n\n" + info.faultDetail, "Load Events Query Fault " + info.faultCode);
+					}
+				}
+			}
+			
+			private function addIncidentGraphic(event:DrawEvent):void
+			{
+				//in case user clicks on incident graphic, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				
+				resetToolImage(selectedTool);
+				selectedTool = null;
+				//setMapAction(null, null, null, null);
+				
+				var geom:Geometry = event.graphic.geometry;
+				addIncident(geom, null, null);
+				
+				//add event listener back to incident graphic
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+				
+			}
+			
+			private function addIncident(geom:Geometry, facil_id:String, acesfd_id:String):void
+			{
+				var graphic:Graphic = new Graphic(geom);
+				var mappt:MapPoint = MapPoint(geom);
+				var incident_id:String = UIDUtil.createUID();
+				
+				var currentDate:Date = new Date();
+				//this adjusts the time -- I think based on how Oracle handles UTC time...
+				//if this adjustment isn't made, time is off by 5 hours.
+				currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+				
+				var attrs:Object = {
+					INCIDNT_ID: incident_id,
+					FACIL_ID: facil_id,
+					ACESFD_ID: acesfd_id,
+					COORD_X: mappt.x,
+					COORD_Y: mappt.y,
+					CREATE_DATE: currentDate,
+					INCIDNT_NAME: "New Event (" + incident_id.substr(incident_id.length-5) + ")",
+					USER_FLAG: "PENDING"
+				}
+				
+				addFeatureToFeatureLayer(incidentLayer, graphic, attrs);
+			}
+			
+			private function addCordonPolyGraphic(size:Number):void
+			{
+				if (currentIncidentGraphic) 
+				{
+					//check to see if incident has facil_id
+					//if it does, get facil graphic from buildings collection 
+					//rather than buffering incident point
+					var geom:Geometry;
+					if (currentIncidentGraphic.attributes.FACIL_ID==null)
+					{
+						geom = currentIncidentGraphic.geometry;
+					} 
+					else
+					{
+						for (var i:int=0; i<buildings.length; i++)
+						{
+							var bldgObj:Object = buildings.getItemAt(i);
+							if (bldgObj.label==currentIncidentGraphic.attributes.FACIL_ID)
+							{
+								geom = Graphic(bldgObj.graphic).geometry;
+							}
+						}
+					}
+					
+					var bufferParameters:BufferParameters = new BufferParameters();
+					// Note: As of version 2.0, the GeometryService input is geometries (instead of graphics).
+					bufferParameters.geometries = [ geom ];
+					bufferParameters.distances = [ size ];
+					// Note: As of version 2.0, the buffer constants have been moved to GeometryService.
+					bufferParameters.unit = GeometryService.UNIT_FOOT;
+					//bufferParameters.bufferSpatialReference = new SpatialReference(spatialref);
+					//bufferParameters.outSpatialReference = map.spatialReference;
+					bufferParameters.bufferSpatialReference = map.spatialReference; //map.spatialReference;
+					bufferParameters.outSpatialReference = map.spatialReference;
+					geometryService.buffer(bufferParameters);
+					
+					
+				} else {
+					Alert.show("There is no incident selected.  Please click on an incident to add a cordon.");
+				}
+			}
+			
+			private function bufferCompleteHandler(event:GeometryServiceEvent):void
+			{
+				
+				for each (var geometry:Polygon in event.result)
+				{
+					var graphic:Graphic = new Graphic();
+					graphic.geometry = geometry;
+					
+					var cordonSize:String = txtCordonSize.text;
+					
+					var attrs:Object;
+					
+					if ((cordonSize=="")||(cordonSize==null))
+						cordonSize = defaultCordonSize.toString();
+					
+					if (editCordonGraphic!=null) //editing existing cordon
+					{
+						editCordonGraphic.geometry = geometry;
+						editCordonGraphic.attributes.CORDON_SIZE = cordonSize
+						editCordonGraphic.attributes.CORDON_NAME = txtCordonLabel.text;
+						editCordonGraphic.attributes.PRIMARY = chkPrimary.selected.toString().toUpperCase();
+						editCordonGraphic.toolTip = txtCordonLabel.text + " - " + cordonSize + "Ft";
+						applyEdits(editCordonGraphic);
+						addCordonedFacilities(geometry);
+						editCordonGraphic = null;
+						
+					} else { //adding new cordon
+						var currentDate:Date = new Date();
+						currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+						attrs = {
+							INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+							CORDON_SIZE: cordonSize,
+							CORDON_NAME: txtCordonLabel.text,
+							PRIMARY: "FALSE",
+							CREATE_DATE: currentDate,
+							USER_FLAG: "PENDING"
+						};
+						addFeatureToFeatureLayer(cordonLayer, graphic, attrs);
+					}
+				}
+				txtCordonSize.text = ""; //reset text box
+			}
+			
+			private function addCordonedFacilities(geom:Geometry):void
+			{
+				try
+				{
+					var queryTask:QueryTask = new QueryTask(buildingsLayerURL);
+					var query:Query = new Query();
+					query.spatialRelationship = Query.SPATIAL_REL_INTERSECTS;
+					query.geometry = geom;
+					query.outFields = ["FACIL_ID"];
+					query.where = "FACIL_ID <> 'NO RP' and FACIL_ID <> 'OFFBASE'"//"FACIL_ID IS NOT NULL and REPLACE(FACIL_ID,' ','') is not null"
+					query.returnGeometry = true;
+					queryTask.execute(query, new AsyncResponder(onResult, onFault));
+					
+					function onResult(featureSet:FeatureSet, token:Object = null):void
+					{
+						if (featureSet.features.length > 0)
+						{
+							for each (var myGraphic:Graphic in featureSet.features)
+							{
+								//don't add the facility if the facil_id is null
+								var facilID:String = myGraphic.attributes.FACIL_ID;
+								if ((facilID!=null)&&(facilID.replace(" ","")!=""))
+								{
+									//before adding the graphic, we have to check to see
+									//if it's already part of this incident
+									var isBldgCordoned:Boolean = isBuildingCordoned(currentIncidentGraphic.attributes.INCIDNT_ID,myGraphic.attributes.FACIL_ID);
+									if (!isBldgCordoned)
+									{
+										var currentDate:Date = new Date();
+										currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+										var attrs:Object = {
+											INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+												FACIL_ID: myGraphic.attributes.FACIL_ID,
+												EVENT_STATUS: "CORDONED",
+												CREATE_DATE: currentDate,
+												USER_FLAG: "PENDING"
+										}
+										addFeatureToFeatureLayer(facstatusLayer,myGraphic,attrs);
+									}
+								}
+							}
+						}
+						else
+						{
+							Alert.show("No buildings intersect with this event!");
+						}
+						
+					}
+					function onFault(info:Object, token:Object = null):void
+					{
+						Alert.show(info.faultString + "\n\n" + info.faultDetail, "queryTask fault " + info.faultCode);
+					}
+				}
+				catch (error:Error)
+				{
+					Alert.show(error.toString(), "myGeometryService_simplifyCompleteHandler error");
+				}
+			}
+			
+			private function isBuildingCordoned(incidentID:String, facilID:String):Boolean
+			{
+				var i:Number;
+				var returnVal:Boolean = false;
+				
+				//facstatusLayer.refresh();
+				for each (var incidentGraphic:Graphic in facstatusLayer.graphicProvider)
+				{
+					if (incidentGraphic.attributes)
+					{
+						if ((incidentGraphic.attributes.FACIL_ID==facilID)&&(incidentGraphic.attributes.INCIDNT_ID==incidentID))
+						{
+							returnVal = true;
+						} 
+					}
+					
+				}
+				return returnVal;	
+			}
+			
+			private function addFacilsToolAction(event:DrawEvent):void
+			{
+				//in case user clicks on incident graphic, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				
+				resetToolImage(selectedTool);
+				selectedTool = null;
+				//setMapAction(null, null, null, null);
+				
+				if (currentIncidentGraphic)
+				{
+					var geom:Geometry = event.graphic.geometry;
+					addCordonedFacilities(geom);
+				} else {
+					Alert.show("You must have an active incident to add cordoned facilities to.");
+				}
+				
+				//add event listener back to incident graphic
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+			}
+			
+			private function editFacilsToolAction(event:DrawEvent):void
+			{
+				//in case user clicks on incident graphic or blockade, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.removeEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				
+				resetToolImage(selectedTool);
+				selectedTool = null;
+				//setMapAction(null, null, null, null);
+				
+				editFacilMultiple.removeAll(); //reset collection
+				if (currentIncidentGraphic)
+				{
+					var extent:Extent = event.graphic.geometry as Extent;
+					var graphic:Graphic;
+					var facilsLabel:String = ""
+					for (var i:Number = 0; i < facstatusLayer.graphicProvider.length; i++)
+					{
+						graphic = facstatusLayer.graphicProvider[i] as Graphic;
+						//if point is contained within extent, highlight it and add for display in results list
+
+						if (extent.intersects(Polygon(graphic.geometry)))
+						{
+							editFacilMultiple.addItem(graphic);
+							if (facilsLabel=="")
+								facilsLabel = graphic.attributes.FACIL_ID;
+							else
+								facilsLabel = facilsLabel + ", " + graphic.attributes.FACIL_ID;
+						}
+
+					}
+					if (editFacilMultiple.length>0)
+					{
+						lblSelectedFacils.text = facilsLabel;
+						//lblFacilStatus.text = "";
+						//lblFacStatusLabel.text = "";
+						//btnActivateFacilStatus.visible = false;
+						showState("editFafcilityStatusState");
+					} 
+					
+					
+				} else {
+					Alert.show("You must have an active incident to change status.");
+				}
+				
+				//add event listener back to incident graphic & blockade
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.addEventListener(MouseEvent.CLICK, blockade_clickHandler);
+			}
+			
+			private function addBlockadeGraphic(event:DrawEvent):void
+			{
+				//in case user clicks on incident graphic or blockade, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.removeEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				
+				resetToolImage(selectedTool);
+				selectedTool = null;
+				//setMapAction(null, null, null, null);
+				
+				if (currentIncidentGraphic)
+				{
+					var geom:MapPoint = MapPoint(event.graphic.geometry);
+					
+					//make a box around point using point buffer stored in er config file
+					var queryGeom:Extent = new Extent (geom.x - pointBuffer, geom.y - pointBuffer, geom.x + pointBuffer, geom.y + pointBuffer)
+					
+					//we need to get roads that intersect with this point
+					//to store in the roads attribute
+					var roadsQueryTask:QueryTask = new QueryTask(roadsLayerURL);
+					roadsQueryTask.useAMF = false;
+					var roadQuery:Query = new Query();
+					roadQuery.outFields = [roadNameField];
+					roadQuery.geometry = queryGeom;
+					roadQuery.returnGeometry = false;
+					roadsQueryTask.execute(roadQuery, new AsyncResponder(onRoadQueryResult, onFault));
+					
+					function onRoadQueryResult(featureSet:FeatureSet, token:Object = null):void
+					{
+						var roadsArry:Array = new Array();
+						if (featureSet.features.length > 0)
+						{
+							for (var i:int=0; i<featureSet.features.length; i++)
+							{
+								var rdName:String = featureSet.features[i].attributes[roadNameField];
+								if (roadsArry.indexOf(rdName)==-1) //only add it if it's not already in there.
+									roadsArry.push(rdName);
+							}
+						}
+						
+						var currentDate:Date = new Date();
+						currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+						var attrs:Object = {
+							INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+							STATUS: "TCP_PENDING",
+							ROADS: roadsArry.join(", "),
+							CREATE_DATE: currentDate,
+							USER_FLAG: "PENDING"
+						}
+							
+						addFeatureToFeatureLayer(blockadeLayer,event.graphic,attrs);
+						//blockadeGraphic.contextMenu = blockadeContextMenu;
+					}
+					function onFault(info:Object, token:Object = null):void
+					{
+						Alert.show(info.faultString + "\n\n" + info.faultDetail, "Roads Query Fault " + info.faultCode);
+					}
+					
+					
+				} else {
+					Alert.show("You must have an active incident to add blockades to.");
+				}
+				
+				//add event listener back to incident graphic & blockade
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.addEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				
+			}
+			
+			private function addSafeRouteGraphic(event:DrawEvent):void
+			{
+				//in case user clicks on incident graphic or blockade, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.removeEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				
+				resetToolImage(selectedTool);
+				selectedTool = null;
+				//setMapAction(null, null, null, null);
+				
+				if (currentIncidentGraphic)
+				{
+					var geom:Geometry = event.graphic.geometry;
+					
+					var currentDate:Date = new Date();
+					currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+					var attrs:Object = { 
+						INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+						CREATE_DATE: currentDate,
+						USER_FLAG: "PENDING"
+					}
+					addFeatureToFeatureLayer(saferouteLayer,event.graphic,attrs);
+					
+				} else {
+					Alert.show("You must have an active incident to add safe routes to.");
+				}
+				
+				//safeRouteGraphic.contextMenu = saferouteContextMenu;
+				//add event listener back to incident graphic & blockade
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.addEventListener(MouseEvent.CLICK, blockade_clickHandler);
+			}
+			
+			private function drawCordonGraphic(event:DrawEvent):void
+			{
+				//in case user clicks on incident graphic, we need to temporarily remove event listener
+				incidentLayer.removeEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.removeEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				
+				resetToolImage(selectedTool);
+				selectedTool = null;
+				setMapAction(null, null, null, null);
+				
+				if (currentIncidentGraphic)
+				{
+					var geom:Geometry = event.graphic.geometry;
+					
+					var currentDate:Date = new Date();
+					currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+					var attrs:Object = {
+						INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+							CREATE_DATE: currentDate,
+							USER_FLAG: "PENDING"
+					};
+					addFeatureToFeatureLayer(plumeLayer, event.graphic, attrs);
+					
+					if (cbAddBuildings.selected)
+						addCordonedFacilities(geom);
+					
+				} else {
+					Alert.show("You must have an active incident to add a cordon.");
+				}
+				
+				//add event listener back to incident graphic
+				incidentLayer.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+				blockadeLayer.addEventListener(MouseEvent.CLICK, blockade_clickHandler);
+				
+				showState("homeState");
+			}
+			
+			private function addFeatureToFeatureLayer(fLayer:FeatureLayer, graphic:Graphic, newAttrs:Object):void
+			{
+				var newGraphic:Graphic = new Graphic(graphic.geometry, null, newAttrs);
+				fLayer.applyEdits([ newGraphic ], null, null);
+			}
+			
+			
+			private function applyEdits(graphic:Graphic):void
+			{	
+				FeatureLayer(graphic.graphicsLayer).applyEdits(null, [ graphic ], null);
+			}
+			
+			private function deleteSingleFeature(graphic:Graphic):void
+			{
+				FeatureLayer(graphic.graphicsLayer).applyEdits(null, null, [ graphic ]);
+			}
+			
+			private function deleteMultipleFeatures(fLayer:FeatureLayer, graphicsAry:Array):void
+			{
+				fLayer.applyEdits(null, null, graphicsAry);
+			}
+
+			
+			private function getIncidentGraphicByID(incident_id:String):Graphic
+			{
+				var returnGraphic:Graphic;
+				for each (var incidentGraphic:Graphic in incidentLayer.graphicProvider)
+				{
+					if (incidentGraphic.attributes)
+					{
+						var thisGraphicIncidentID:String = incidentGraphic.attributes.INCIDNT_ID;
+						if (thisGraphicIncidentID==incident_id)
+						{
+							returnGraphic = incidentGraphic;
+						}
+					}
+				}
+				return returnGraphic;
+			}
+			
+			private function getGraphicByOID(fLayer:FeatureLayer, oid:String):Graphic
+			{
+				var returnGraphic:Graphic;
+				for each (var myGraphic:Graphic in fLayer.graphicProvider)
+				{
+					if (myGraphic.attributes)
+					{
+						var thisGraphicOID:String = myGraphic.attributes.OBJECTID;
+						if (thisGraphicOID==oid)
+						{
+							returnGraphic = myGraphic;
+						}
+					}
+				}
+				return returnGraphic;
+			}
+			
+			private function setCurrentIncident(graphic:Graphic):void
+			{
+				if (currentIncidentGraphic!==graphic)
+				{
+					if (currentIncidentGraphic!=null)
+					{
+						currentIncidentGraphic.filters = []; //remove filter from previously selected incident
+						selectedIncidents.removeAll();
+					}
+					if (graphic!=null)
+					{
+						//set as current/active incident
+						currentIncidentGraphic = graphic;
+						currentIncidentGraphic.filters = [ glowFilter ];
+						selectedIncidents.addItem(currentIncidentGraphic);
+					} else {
+						currentIncidentGraphic = null;
+					}
+				}
+			}
+			
+			private function incident_clickHandler(event:MouseEvent):void
+			{
+				//var myGraphic:Graphic = getGraphicFromMouseTarget(event.target);
+				var myGraphic:Graphic = event.target as Graphic;
+				setCurrentIncident(myGraphic);
+				showState("homeState");
+			}
+			
+			private function blockade_clickHandler(event:MouseEvent):void
+			{
+				if (event.target is Graphic || event.target.parent is Graphic)
+				{
+					if (selectedGraphic != null)
+					{
+						(selectedGraphic.parent as FeatureLayer).applyEdits(null, [ selectedGraphic ], null);
+					}
+					if (event.target is Graphic)
+					{
+						selectedGraphic = Graphic(event.target);
+					}
+					else if (event.target.parent is Graphic)
+					{
+						selectedGraphic = Graphic(event.target.parent);
+					}
+					editTool.activate(EditTool.MOVE, [ selectedGraphic ]);
+					map.addEventListener(MapMouseEvent.MAP_CLICK, map_mapClickHandler);
+				}
+				/*var blockadeGraphic:Graphic = event.target as Graphic;
+				Alert.show(blockadeGraphic.name);
+				editTool.activate(EditTool.MOVE, [ blockadeGraphic ]);
+				map.addEventListener(MapMouseEvent.MAP_CLICK, map_mapClickHandler);*/
+			}
+			
+			protected function fLayer_graphicAddHandler(event:GraphicEvent):void
+			{
+				var graphic:Graphic = event.graphic;
+				var fLayer:FeatureLayer = FeatureLayer(graphic.graphicsLayer);
+				switch (fLayer)
+				{
+					case incidentLayer:
+						graphic.toolTip = graphic.attributes.INCIDNT_NAME;
+						break;
+					case cordonLayer:
+						graphic.toolTip = graphic.attributes.CORDON_NAME + " - " + graphic.attributes.CORDON_SIZE + " Ft";
+						//graphic.autoMoveToTop = false;
+						reOrderCordons(graphic.attributes.INCIDNT_ID);
+						break;
+					case blockadeLayer:
+						graphic.toolTip = graphic.attributes.ID + " - " + graphic.attributes.STATUS;
+						break;
+					case facstatusLayer:
+						graphic.toolTip = graphic.attributes.FACIL_ID + " - " + graphic.attributes.EVENT_STATUS;
+						break;
+					case saferouteLayer:
+						
+						break;
+				}
+			}
+			
+			protected function flayer_faultHandler(event:FaultEvent):void
+			{
+				Alert.show(event.fault.faultString + "\n\n" + event.fault.faultDetail, "FeatureLayer Fault " + event.fault.faultCode);
+				trace("f: " + event.toString());
+			}
+			
+			protected function flayer_editsCompleteHandler(event:FeatureLayerEvent):void
+			{
+				trace("e: " + event.toString());
+				//var graphic:Graphic = event.adds[0] as Graphic;
+				if (event.featureEditResults.addResults.length>0)
+				{
+					var oid:String = event.featureEditResults.addResults[0].objectId;
+					trace("objectid: " + oid);
+					trace("featureLayer: " + event.featureLayer.name);
+					if ((event.featureLayer==incidentLayer)&&(oid)) //adding a new incident
+					{
+						var graphic:Graphic = getGraphicByOID(event.featureLayer,oid);
+						//add click event to incident Graphic
+						//graphic.addEventListener(MouseEvent.CLICK, incident_clickHandler);
+						
+						setCurrentIncident(graphic);
+						
+						//add cordon
+						addCordonPolyGraphic(defaultCordonSize);
+					}
+					//||(event.featureLayer==plumeLayer)
+					if ((event.featureLayer==cordonLayer)&&(oid)) //added new cordon or new plume
+					{
+						var graphic2:Graphic = getGraphicByOID(event.featureLayer,oid);
+						addCordonedFacilities(graphic2.geometry);
+						
+						//reorder Cordon Graphics so that the largest is on bottom
+						//reOrderCordons(graphic2.attributes.INCIDNT_ID);
+					}
+					//if (event.featureLayer==facstatusLayer)
+					//	facstatusLayer.refresh(); 
+				}
+				
+				if (event.featureEditResults.updateResults.length>0)
+				{
+					if (activateInactiveEvent)
+					{
+						//check to see if all updates are done, if so set activateInactiveEvent to false
+						var allTrue:Boolean = true;
+						var falseCount:int = 0;
+						var i:int;
+						var obj:Object;
+						for (i=0; i<activateCompleteCollection.length; i++)
+						{
+							obj = activateCompleteCollection.getItemAt(i);
+							if (obj.updated==false)
+								allTrue = false;
+							else  //if it's already been updated, reset def expression
+							{
+								var fl:FeatureLayer = obj.layer;
+								fl.definitionExpression = "USER_FLAG != 'INACTIVE'";
+								//fl.refresh();
+							}
+						}
+						if (allTrue)
+						{
+							//reset everything
+							activateInactiveEvent = false;
+							inactive_incidentId = null;
+							for (i=0; i<activateCompleteCollection.length; i++)
+							{
+								obj = activateCompleteCollection.getItemAt(i);
+								obj.updated = true;
+							}
+						}
+					}
+					else 
+					{
+						var oid2:String = event.featureEditResults.updateResults[0].objectId;
+						if (oid2)
+						{
+							var myGraphic:Graphic = getGraphicByOID(event.featureLayer,oid2);
+							if (myGraphic)
+							{
+								if (myGraphic.attributes.USER_FLAG=="INACTIVE")
+									myGraphic.visible = false;	
+							}
+						}
+					}
+					
+				}
+				
+				//event.featureLayer.refresh();
+				
+			}
+			
+			private function reOrderCordons(incident_id:String):void
+			{
+				var ct:int = 0;
+				var cordonGraphics:ArrayCollection = new ArrayCollection();
+				//get collection of cordon graphics for this event
+				for each (var myGraphic:Graphic in cordonLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==incident_id){
+						cordonGraphics.addItem({size: parseInt(myGraphic.attributes.CORDON_SIZE), graphic: myGraphic});
+					}
+				}
+				//now sort cordons by size
+				var dataSortField:SortField = new SortField();
+				dataSortField.name = "size";
+				dataSortField.numeric = true;
+				
+				var numericDataSort:Sort = new Sort();
+				numericDataSort.fields = [dataSortField];
+				numericDataSort.reverse();
+				
+				if (cordonGraphics)
+				{
+					cordonGraphics.sort = numericDataSort;
+					cordonGraphics.refresh();					
+				}
+				
+				//now move graphics around
+				for (var c:int=0; c<cordonGraphics.length; c++)
+				{
+					var obj:Object = cordonGraphics.getItemAt(c);
+					cordonLayer.moveToTop(obj.graphic);
+				}
+			}
+			
+
+			//***************************
+			//CONTEXT MENU EVENT HANDLERS
+			//***************************
+			private function getGraphicFromMouseTarget(target:InteractiveObject):Graphic
+			{
+				var myGraphic:Graphic;
+				var isTargetGraphic:Boolean=target is Graphic;
+				//for complex graphic symbologies, the mouse target is a custom 
+				//sprite object so we must determine if the target is the graphic, 
+				//and if not, get the graphic from the parent 
+				if (isTargetGraphic==false) 
+					myGraphic = Graphic(target.parent);
+				else
+					myGraphic = Graphic(target);
+				
+				return myGraphic;
+			}
+			
+			private function editIncidentInfo(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				setCurrentIncident(myGraphic);
+				showState("editIncidentState");
+				
+				//set form elements based on graphic attributes
+				txtIncidentDetails.text = currentIncidentGraphic.attributes.NARRATIVE;
+				txtIncidentName.text = currentIncidentGraphic.attributes.INCIDNT_NAME;
+				var acesfd_id:String = currentIncidentGraphic.attributes.ACESFD_ID;
+				
+				var i:int;
+				if (acesfd_id!=null)
+				{
+					taEventLog.htmlText = "<a href='" + acesEventLogUrl + acesfd_id + "' target='_blank'>View ACES-FD Event Log</a>";
+					taEventLog.visible = true;
+					taEventLog.includeInLayout = true;
+					for (i=0; i<cbEditAcesFd.dataProvider.length; i++)
+					{
+						var obj:Object = cbEditAcesFd.dataProvider.getItemAt(i);
+						if (obj.acesfd_id==acesfd_id)
+							cbEditAcesFd.selectedIndex = i;
+					}
+				} else {
+					cbEditAcesFd.selectedIndex = -1;
+					taEventLog.visible = false;
+					taEventLog.includeInLayout = false;
+				}
+				
+				for (i=0; i<cbStatus.dataProvider.length; i++)
+				{
+					var item:Object = Object(cbStatus.dataProvider.getItemAt(i));
+					if (item.data.toUpperCase()==currentIncidentGraphic.attributes.USER_FLAG.toUpperCase())
+					{
+						cbStatus.selectedIndex = i;
+						break;
+					}
+				}
+				
+			}
+			
+			private function deleteIncident(event:ContextMenuEvent):void
+			{
+				currentIncidentGraphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				var currentIncidentID:String = currentIncidentGraphic.attributes.INCIDNT_ID;
+				
+				var myGraphic:Graphic;
+				
+				//delete cordons
+				var cordonsArry:Array = new Array();
+				for each (myGraphic in cordonLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentID)
+						cordonsArry.push(myGraphic);
+				}
+				if (cordonsArry.length>0)
+					deleteMultipleFeatures(cordonLayer,cordonsArry);
+				
+				//delete facilities
+				var facilsArry:Array = new Array();
+				for each (myGraphic in facstatusLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentID)
+						facilsArry.push(myGraphic);
+				}
+				if (facilsArry.length>0)
+					deleteMultipleFeatures(facstatusLayer,facilsArry);
+				
+				//delete blockades
+				var blockArry:Array = new Array();
+				for each (myGraphic in blockadeLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentID)
+						blockArry.push(myGraphic);
+				}
+				if (blockArry.length>0)
+					deleteMultipleFeatures(blockadeLayer,blockArry);
+				
+				//delete saferoutes
+				var safeArry:Array = new Array();
+				for each (myGraphic in saferouteLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentID)
+						safeArry.push(myGraphic);
+				}
+				if (safeArry.length>0)
+					deleteMultipleFeatures(saferouteLayer,safeArry);
+				
+				//delete plumes
+				var plumeArry:Array = new Array();
+				for each (myGraphic in plumeLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentID)
+						plumeArry.push(myGraphic);
+				}
+				if (plumeArry.length>0)
+					deleteMultipleFeatures(plumeLayer,plumeArry);
+				
+				//delete incident
+				deleteSingleFeature(currentIncidentGraphic);
+				
+				setCurrentIncident(null);
+				
+			}
+			
+			
+			
+			private function addCordon(event:ContextMenuEvent):void
+			{
+				setCurrentIncident(getGraphicFromMouseTarget(event.mouseTarget));
+				showState("editCordonState");
+			}
+			
+			private function showBuildingsReport(event:ContextMenuEvent):void
+			{
+				setCurrentIncident(getGraphicFromMouseTarget(event.mouseTarget));
+				showState("buildingsReportState");
+				
+				//clear facStatusArray
+				facStatusArray.removeAll();
+				
+				//build data provider for grid of only FacilityStatus items
+				for each (var myGraphic:Graphic in facstatusLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+					{
+						//get bgcolor from symbol
+						//var sym:SimpleFillSymbol = SimpleFillSymbol(myGraphic.symbol);
+						facStatusArray.addItem({OBJECTID:myGraphic.attributes.OBJECTID, FACIL_ID:myGraphic.attributes.FACIL_ID, EVENT_STATUS:myGraphic.attributes.EVENT_STATUS});
+					}
+				}
+				dgBuildings.dataProvider = facStatusArray;
+			}
+			
+			private function showBlockadesReport(event:ContextMenuEvent):void
+			{
+				setCurrentIncident(getGraphicFromMouseTarget(event.mouseTarget));
+				showState("blockadesReportState");
+				
+				//clear blockadesArray
+				blockadesArray.removeAll();
+				
+				//build data provider for grid of only FacilityStatus items
+				for each (var myGraphic:Graphic in blockadeLayer.graphicProvider)
+				{
+					if (myGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						blockadesArray.addItem({OBJECTID:myGraphic.attributes.OBJECTID, ID:myGraphic.attributes.ID, STATUS:myGraphic.attributes.STATUS, ROADS:myGraphic.attributes.ROADS, COMMENTS:myGraphic.attributes.COMMENTS});
+				}
+				dgBlockades.dataProvider = blockadesArray;
+			}
+			
+			
+			private function activateEntireEvent(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				setCurrentIncident(myGraphic);
+				setAllStatus("ACTIVE");
+			}
+			
+			private function archiveEvent(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				setCurrentIncident(myGraphic);
+				setAllStatus("INACTIVE");
+			}
+			
+			private function setAllStatus(status:String):void
+			{
+				if (currentIncidentGraphic)
+				{
+					for each (var iGraphic:Graphic in incidentLayer.graphicProvider)
+					{
+						if (iGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						{
+							iGraphic.attributes.USER_FLAG= status.toUpperCase();
+							applyEdits(iGraphic);
+						}
+					}
+					for each (var cGraphic:Graphic in cordonLayer.graphicProvider)
+					{
+						if (cGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						{
+							cGraphic.attributes.USER_FLAG= status.toUpperCase();
+							applyEdits(cGraphic);
+						}
+					}
+					for each (var fGraphic:Graphic in facstatusLayer.graphicProvider)
+					{
+						if (fGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						{
+							fGraphic.attributes.USER_FLAG= status.toUpperCase();
+							applyEdits(fGraphic);
+						}
+					}
+					for each (var bGraphic:Graphic in blockadeLayer.graphicProvider)
+					{
+						if (bGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						{
+							bGraphic.attributes.USER_FLAG= status.toUpperCase();
+							applyEdits(bGraphic);
+						}
+					}
+					for each (var sGraphic:Graphic in saferouteLayer.graphicProvider)
+					{
+						if (sGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						{
+							sGraphic.attributes.USER_FLAG= status.toUpperCase();
+							applyEdits(sGraphic);
+						}
+					}
+					for each (var pGraphic:Graphic in plumeLayer.graphicProvider)
+					{
+						if (pGraphic.attributes.INCIDNT_ID==currentIncidentGraphic.attributes.INCIDNT_ID)
+						{
+							pGraphic.attributes.USER_FLAG= status.toUpperCase();
+							applyEdits(pGraphic);
+						}
+					}
+					
+					if (status.toUpperCase()=="INACTIVE")
+					{
+						//add to archived events dropdown
+						var listObj:Object = {label:currentIncidentGraphic.attributes.INCIDNT_NAME, data:currentIncidentGraphic.attributes.INCIDNT_ID};
+						if (cbInactiveEvents.dataProvider.getItemIndex(listObj)==-1)
+							cbInactiveEvents.dataProvider.addItem(listObj);
+						
+						setCurrentIncident(null);
+					}
+				}
+				
+			}
+			
+			private function editCordon(event:ContextMenuEvent):void
+			{
+				editCordonGraphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(editCordonGraphic.attributes.INCIDNT_ID));
+				
+				showState("editCordonState");
+				
+				txtCordonLabel.text = editCordonGraphic.attributes.CORDON_NAME;
+				txtCordonSize.text = editCordonGraphic.attributes.CORDON_SIZE;
+				if (editCordonGraphic.attributes.PRIMARY.toUpperCase()=="TRUE")
+					chkPrimary.selected = true;
+				else
+					chkPrimary.selected = false;
+			}
+			private function deleteCordon(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(myGraphic.attributes.INCIDNT_ID));
+				
+				//delete the cordon
+				deleteSingleFeature(myGraphic);
+				
+
+			}
+			
+			private function editFacility(event:ContextMenuEvent):void
+			{
+				editFacilGraphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(editFacilGraphic.attributes.INCIDNT_ID));
+				
+				showState("editFafcilityStatusState");
+				lblSelectedFacils.text = editFacilGraphic.attributes.FACIL_ID;
+				/* lblFacilStatus.text = editFacilGraphic.attributes.status;
+				lblFacStatusLabel.text = "Status: ";
+				if (editFacilGraphic.attributes.status=="PENDING") //give option for user to activate
+				{
+				btnActivateFacilStatus.visible = true;
+				} else {
+				btnActivateFacilStatus.visible = false;
+				} */
+				var i:Number;
+				for (i=0; i<cboFacilStatus.dataProvider.length; i++)
+				{
+					var item:Object = Object(cboFacilStatus.dataProvider.getItemAt(i));
+					if (item.status==editFacilGraphic.attributes.EVENT_STATUS)
+					{
+						cboFacilStatus.selectedIndex = i;
+						break;
+					}
+				}
+			}
+			private function deleteFacility(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(myGraphic.attributes.INCIDNT_ID));
+				
+				deleteSingleFeature(myGraphic);
+				
+			}
+			
+			private function editBlockade(event:ContextMenuEvent):void
+			{
+				editBlockadeGraphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(editBlockadeGraphic.attributes.INCIDNT_ID));
+				
+				showState("editBlockadeState");
+				/* lblBlockadeStatus.text = editBlockadeGraphic.attributes.status;
+				if (editBlockadeGraphic.attributes.status=="PENDING") //give option for user to activate
+				{
+				btnActivateBlockade.visible = true;
+				} else {
+				btnActivateBlockade.visible = false;
+				} */
+				txtBlockadeLabel.text = editBlockadeGraphic.attributes.ID;
+				txtBlockadeDetails.text = editBlockadeGraphic.attributes.COMMENTS;
+				var i:Number;
+				for (i=0; i<cboBlockadeType.dataProvider.length; i++)
+				{
+					var item:Object = Object(cboBlockadeType.dataProvider.getItemAt(i));
+					if (item.type==editBlockadeGraphic.attributes.STATUS)
+					{
+						cboBlockadeType.selectedIndex = i;
+						break;
+					}
+				}
+			}
+			private function deleteBlockade(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(myGraphic.attributes.INCIDNT_ID));
+				
+				deleteSingleFeature(myGraphic);
+				
+			}
+			
+			private function deleteRoute(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(myGraphic.attributes.INCIDNT_ID));
+				
+				deleteSingleFeature(myGraphic);
+				
+			}
+			
+			private function deletePlume(event:ContextMenuEvent):void
+			{
+				var myGraphic:Graphic = getGraphicFromMouseTarget(event.mouseTarget);
+				
+				//in order to keep the active event in synch with what is being sent to xml
+				//we need to activate the event associated with context-event graphic
+				setCurrentIncident(getIncidentGraphicByID(myGraphic.attributes.INCIDNT_ID));
+				
+				deleteSingleFeature(myGraphic);
+				
+			}
+			
+			//***************************
+			//FORM BUTTON CLICK HANDLERS
+			//***************************
+			private function btnActivateEvent_clickHandler(event:MouseEvent):void
+			{
+				 if (cbInactiveEvents.selectedIndex>=0)
+				{
+					var incident_id:String = cbInactiveEvents.selectedItem.data;
+					trace("incident_id: " + incident_id);
+					
+					activateInactiveEvent = true;
+					inactive_incidentId = incident_id;
+					
+					//have to turn off def queries to acces INACTIVE events
+					incidentLayer.definitionExpression = "";
+					cordonLayer.definitionExpression = "";
+					blockadeLayer.definitionExpression = "";
+					facstatusLayer.definitionExpression = "";
+					saferouteLayer.definitionExpression = "";
+					plumeLayer.definitionExpression = "";
+
+					cbInactiveEvents.dataProvider.removeItemAt(cbInactiveEvents.selectedIndex);
+				} 
+			}
+			
+			private function btnAddEventByBuilding_clickHandler(event:MouseEvent):void
+			{
+				var selectedBldg:Object = Object(cbBuildings.selectedItem);
+				if (selectedBldg)
+				{
+					var geom:MapPoint = new MapPoint(selectedBldg.x, selectedBldg.y, map.spatialReference);
+					addIncident(geom, selectedBldg.label, null);
+				} 
+			}
+			
+			protected function btnAddEventByAcesFD_clickHandler(event:MouseEvent):void
+			{
+				var selectedAcesEvent:Object = Object(cbAddAcesFd.selectedItem);
+				if (selectedAcesEvent)
+				{
+					//loop through buildings collection to get matching facility
+					var i:int = 0;
+					var buildingFound:Boolean = false;
+					for (i=0; i<buildings.length; i++)
+					{
+						var bObj:Object = buildings.getItemAt(i);
+						if (bObj.label==selectedAcesEvent.facil_id)
+						{
+							var geom:MapPoint = new MapPoint(bObj.x, bObj.y, map.spatialReference);
+							buildingFound = true;
+							addIncident(geom, selectedAcesEvent.facil_id, selectedAcesEvent.acesfd_id);
+						}
+					}
+					if (buildingFound==false)
+						Alert.show("Building " + selectedAcesEvent.facil_id + " was not found in Geobase data");
+				}
+				
+			}
+			
+			private function btnEditIncident_clickHandler(event:MouseEvent):void
+			{
+				currentIncidentGraphic.attributes.INCIDNT_NAME = txtIncidentName.text;
+				currentIncidentGraphic.attributes.NARRATIVE = txtIncidentDetails.text;
+				currentIncidentGraphic.attributes.USER_FLAG = cbStatus.selectedItem.data;
+				if (fdSupported)
+					currentIncidentGraphic.attributes.ACESFD_ID = cbEditAcesFd.selectedItem.acesfd_id;
+				
+				currentIncidentGraphic.toolTip = currentIncidentGraphic.attributes.INCIDNT_NAME;
+				
+				applyEdits(currentIncidentGraphic);
+				
+				//synchronize statuses
+				setAllStatus(cbStatus.selectedItem.data);
+				
+				showState("homeState");
+			}
+			
+			private function btnAddCordon_clickHandler(event:MouseEvent):void
+			{
+				if (!isNaN(parseFloat(txtCordonSize.text)))
+				{
+					var cSize:Number = parseFloat(txtCordonSize.text);
+					addCordonPolyGraphic(cSize);
+					showState("homeState");
+					
+				} else {
+					Alert.show("Cordon Size must be numeric!");
+				}
+			}
+			
+			private function btnSaveBlockade_clickHandler(event:MouseEvent):void
+			{
+				if (editBlockadeGraphic!=null)
+				{
+					//set type attributes
+					editBlockadeGraphic.attributes.STATUS = cboBlockadeType.selectedItem.type;
+					editBlockadeGraphic.attributes.ID = txtBlockadeLabel.text;
+					editBlockadeGraphic.attributes.COMMENTS = txtBlockadeDetails.text;
+					
+					//set tooltip
+					editBlockadeGraphic.toolTip = editBlockadeGraphic.attributes.ID + " - " + editBlockadeGraphic.attributes.STATUS;
+					
+					applyEdits(editBlockadeGraphic);
+					
+					showState("homeState");
+				}
+				//reset edit graphic
+				editBlockadeGraphic = null
+			}
+			
+			private function btnSaveFacilStatus_clickHandler(event:MouseEvent):void
+			{
+				var xmlval:XML;
+				if (editFacilGraphic!=null) //single edit via context menu
+				{
+					editFacilGraphic.attributes.EVENT_STATUS = cboFacilStatus.selectedItem.status;
+					editFacilGraphic.toolTip = editFacilGraphic.attributes.FACIL_ID + " - " + editFacilGraphic.attributes.EVENT_STATUS;
+					
+					applyEdits(editFacilGraphic);
+					
+					showState("homeState");
+					editFacilGraphic = null;
+				}
+				
+				if (editFacilMultiple.length>0) //multiple facil edit via toolbar
+				{
+					var graphicIds:String = ""
+					for (var i:int=0; i<editFacilMultiple.length; i++)
+					{
+						var graphic:Graphic = Graphic(editFacilMultiple.getItemAt(i));
+						graphic.attributes.EVENT_STATUS = cboFacilStatus.selectedItem.status;
+						graphic.toolTip = graphic.attributes.FACIL_ID + " - " + graphic.attributes.EVENT_STATUS;
+						
+						applyEdits(graphic);
+					}
+					
+					showState("homeState");
+					editFacilMultiple.removeAll();
+				}
+				
+			}
+			
+			private function resetEditBuildings():void
+			{
+				showState('homeState');
+				if (editFacilGraphic)
+				{
+					editFacilGraphic.filters = [  ];
+					editFacilGraphic = null;
+					selectedBuildings.removeAll();
+				}
+			}
+			
+			private function dgBuildings_itemEditBegin(event:DataGridEvent):void
+			{
+				var facilObject:Object = facStatusArray.getItemAt(event.rowIndex);
+				//find the facil graphic by id
+				editFacilGraphic = getGraphicByOID(facstatusLayer,facilObject.OBJECTID);
+				//highlight the facility being edited
+				if (editFacilGraphic)
+				{
+					editFacilGraphic.filters = [ glowFilter ];
+					selectedBuildings.addItem(editFacilGraphic);
+				}
+			}
+			
+			private function dgBuildings_itemEditEnd(event:DataGridEvent):void
+			{
+				var facilObject:Object = facStatusArray.getItemAt(event.rowIndex);
+				var newVal:String = event.currentTarget.itemEditorInstance.text;
+				
+				//find the facil graphic by OBJECTID
+				editFacilGraphic = getGraphicByOID(facstatusLayer,facilObject.OBJECTID);
+				
+				if (editFacilGraphic)
+				{
+					//find the right symbol
+					var j:int = 0;
+					
+					editFacilGraphic.attributes.EVENT_STATUS = newVal;
+					applyEdits(editFacilGraphic);
+					
+					editFacilGraphic.filters = [  ];
+					editFacilGraphic = null;
+					selectedBuildings.removeAll();
+				}
+				
+			}
+			
+			private function resetEditBlockades():void
+			{
+				showState('homeState');
+				if (editBlockadeGraphic)
+				{
+					editBlockadeGraphic.filters = [  ];
+					editBlockadeGraphic = null;
+					selectedBlockades.removeAll();
+				}
+			}
+			
+			
+			private function dgBlockades_itemEditBegin(event:DataGridEvent):void
+			{
+				trace("edit_begin");
+				var blockadeObject:Object = blockadesArray.getItemAt(event.rowIndex);
+				trace("blockadeOID: " + blockadeObject.OBJECTID);
+				//find the graphic by objectid
+				editBlockadeGraphic = getGraphicByOID(blockadeLayer,blockadeObject.OBJECTID);
+				//highlight the item being edited
+				if (editBlockadeGraphic)
+				{
+					editBlockadeGraphic.filters = [ glowFilter ];
+					selectedBlockades.addItem(editBlockadeGraphic);
+				}
+			}
+			
+			private function dgBlockades_itemEditEnd(event:DataGridEvent):void
+			{
+				var blockObject:Object = blockadesArray.getItemAt(event.rowIndex);
+				var newVal:String = event.currentTarget.itemEditorInstance.text;
+				var dataField:String = event.dataField;
+				
+				//find the graphic by OBJECTID
+				editBlockadeGraphic = getGraphicByOID(blockadeLayer,blockObject.OBJECTID)
+				
+				if (editBlockadeGraphic)
+				{
+					editBlockadeGraphic.attributes[dataField] = newVal;
+					applyEdits(editBlockadeGraphic);
+					
+					editBlockadeGraphic.filters = [  ];
+					editBlockadeGraphic = null;
+					selectedBlockades.removeAll();
+				}
+				
+			}
+			
+			
+			
+			private function showState(stateName:String):void
+			{
+				this.currentState = stateName;
+			}
+			
+			private function toolRollOverHandler(event:Event):void
+			{
+				var img:Image = Image(event.currentTarget);
+				if (selectedTool!=img)
+				{
+					switch (img.id)
+					{
+						case "toolImgAddIncident":
+						{
+							img.source = imgAddIncidentClass_Hover;
+							break;
+						}
+						case "toolImgAddCordon":
+						{
+							img.source = imgAddCordonClass_Hover;
+							break;
+						}
+						case "toolImgAddFacil":
+						{
+							img.source = imgAddFacilClass_Hover;
+							break;
+						}
+						case "toolImgAddBlockade":
+						{
+							img.source = imgAddBlockadeClass_Hover;
+							break;
+						}
+						case "toolImgAddRoute":
+						{
+							img.source = imgAddRouteClass_Hover;
+							break;
+						}
+						case "toolImgAddPlume":
+						{
+							img.source = imgAddPlumeClass_Hover;
+							break;
+						}
+						case "toolImgDrawCordon":
+						{
+							img.source = imgDrawCordonClass_Hover;
+							break;
+						}
+					}
+				}
+			}
+			
+			private function toolRollOutHandler(event:Event):void
+			{
+				var img:Image = Image(event.currentTarget);
+				if (selectedTool!=img)
+					resetToolImage(img);
+			}
+			
+			private function setActiveToolImage(img:Image):void
+			{
+				switch (img.id)
+				{
+					case "toolImgAddIncident":
+					{
+						img.source = imgAddIncidentClass_Selected;
+						break;
+					}
+					case "toolImgAddCordon":
+					{
+						img.source = imgAddCordonClass_Selected;
+						break;
+					}
+					case "toolImgAddFacil":
+					{
+						img.source = imgAddFacilClass_Selected;
+						break;
+					}
+					case "toolImgEditFacil":
+					{
+						img.source = imgEditFacilClass_Selected;
+						break;
+					}
+					case "toolImgAddBlockade":
+					{
+						img.source = imgAddBlockadeClass_Selected;
+						break;
+					}
+					case "toolImgAddRoute":
+					{
+						img.source = imgAddRouteClass_Selected;
+						break;
+					}
+					case "toolImgAddPlume":
+					{
+						img.source = imgAddPlumeClass_Selected;
+						break;
+					}
+					case "toolImgDrawCordon":
+					{
+						img.source = imgDrawCordonClass_Selected;
+						break;
+					}
+				}
+			}
+			
+			private function resetToolImage(img:Image):void
+			{
+				switch (img.id)
+				{
+					case "toolImgAddIncident":
+					{
+						img.source = imgAddIncidentClass;
+						break;
+					}
+					case "toolImgAddCordon":
+					{
+						img.source = imgAddCordonClass;
+						break;
+					}
+					case "toolImgAddFacil":
+					{
+						img.source = imgAddFacilClass;
+						break;
+					}
+					case "toolImgEditFacil":
+					{
+						img.source = imgEditFacilClass;
+						break;
+					}
+					case "toolImgAddBlockade":
+					{
+						img.source = imgAddBlockadeClass;
+						break;
+					}
+					case "toolImgAddRoute":
+					{
+						img.source = imgAddRouteClass;
+						break;
+					}
+					case "toolImgAddPlume":
+					{
+						img.source = imgAddPlumeClass;
+						break;
+					}
+					case "toolImgDrawCordon":
+					{
+						img.source = imgDrawCordonClass;
+						break;
+					}
+				}
+			}
+			
+			private function widgetClosedHandler(event:Event):void
+			{
+				if (cordonLayer)
+					map.removeLayer(cordonLayer);
+				if (facstatusLayer)
+					map.removeLayer(facstatusLayer);
+				if (saferouteLayer)
+					map.removeLayer(saferouteLayer);
+				if (plumeLayer)
+					map.removeLayer(plumeLayer);
+				if (blockadeLayer)
+					map.removeLayer(blockadeLayer);
+				if (incidentLayer)
+					map.removeLayer(incidentLayer);
+				//if (bNumsService)
+				//	map.removeLayer(bNumsService);
+				
+				setMapAction(null, null, null, null); // deactivate drawTool
+				
+				//finishDrawing = true;
+				/* if (selectedDrawingIcon)
+				{
+				selectedDrawingIcon = null;
+				} */
+			}
+			
+			private function widgetOpenedHandler(event:Event):void
+			{
+				if (cordonLayer)
+					map.addLayer(cordonLayer);
+				if (plumeLayer)
+					map.addLayer(plumeLayer);
+				if (facstatusLayer)
+					map.addLayer(facstatusLayer);
+				if (saferouteLayer)
+					map.addLayer(saferouteLayer);
+				if (blockadeLayer)
+					map.addLayer(blockadeLayer);
+				if (incidentLayer)
+					map.addLayer(incidentLayer);
+				//if (bNumsService)
+				//	map.addLayer(bNumsService);
+			}
+			
+			/* protected function cbInstall_changeHandler(event:IndexChangeEvent):void
+			{
+				loadBuildingsDDL();
+			} */
+			
+			public function loadKMLfile_clickHandler():void
+			{
+				m_fileReference2 = new FileReference();
+				m_fileReference2.addEventListener(Event.SELECT, kmlSelectHandler);
+				m_fileReference2.addEventListener(Event.CANCEL, kmlCancelHandler);
+				m_fileReference2.browse([new FileFilter("KML Files", "*.kml")]);
+			}
+			
+			private function kmlSelectHandler(event:Event):void
+			{
+				m_fileReference2.addEventListener(Event.COMPLETE, kmlCompleteHandler);
+				m_fileReference2.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
+				m_fileReference2.load();
+				
+			}
+			
+			private function kmlCancelHandler(event:Event):void
+			{
+				m_fileReference2 = null;
+			}
+			
+			private function buildPolyFromCoords(coordsXMLString:String):Polygon
+			{
+				var crlf:String = String.fromCharCode(13, 10); //carriage returns and linefeeds
+				var regEx:RegExp = new RegExp(crlf,"g");
+				coordsXMLString = coordsXMLString.replace(regEx," ");
+				var coordsAry:Array = coordsXMLString.split(" ");
+				var poly:Polygon = new Polygon();
+				var rings:Array = new Array();
+				var sref:SpatialReference = new SpatialReference(4326);
+				
+				for (var x:int=0; x<coordsAry.length; x++)
+				{
+					var xyzVals:Array = coordsAry[x].split(",");
+					var mapPoint:MapPoint = new MapPoint(parseFloat(xyzVals[0]),parseFloat(xyzVals[1]),sref);
+					if (rings.lastIndexOf(mapPoint)==-1) //dont add points more than once.
+						rings.push(mapPoint);
+				}
+				poly.addRing(rings);
+				poly = WebMercatorUtil.geographicToWebMercator(poly) as Polygon;
+				return poly;
+			}
+			
+			private function kmlCompleteHandler(event:Event):void
+			{
+				var kmlDoc:XML = new XML(m_fileReference2.data);
+				var defaultNs:Namespace = new Namespace("http://www.opengis.net/kml/2.2");
+				kmlDoc.setNamespace(defaultNs);
+				//kmlDoc.addNamespace(defaultNs);
+				//Alert.show(kmlDoc.toString());
+				//var xmlListColl:XMLListCollection = new XMLListCollection(kmlDoc.children());
+				var kmlXMLList:XMLList = kmlDoc.children();
+				//var placeMarks:XMLList = kmlXMLList.children().(name().localName=="Placemark");
+				var placeMarks:XMLList = kmlXMLList.descendants(new QName(defaultNs.uri,"Placemark"));
+				//var placeMarks:XMLList = kmlDoc.kml.Document..Placemark;
+				//Alert.show(placeMarks.length().toString());
+				var p:int = 0;
+				var sref:SpatialReference = new SpatialReference(4326);
+				
+				var unionPolys:Array = new Array();
+				var unionPlume:Polygon = null;
+				for (p=0; p<placeMarks.length(); p++)
+				{
+					var nameXML:XMLList = placeMarks[p].descendants(new QName(defaultNs.uri,"name"));
+					var placeMarkName:String = "";
+					if (nameXML.length()>0)
+						placeMarkName = nameXML[0].toString();
+					//trace(placeMarkName);
+					//Alert.show(placeMarkName);
+					var polygonXML:XMLList = placeMarks[p].children().(name().localName=="Polygon");
+					var outterRing:XMLList = polygonXML.children().(name().localName=="outerBoundaryIs");
+					var innerRing:XMLList = polygonXML.children().(name().localName=="innerBoundaryIs");
+					var outterPoly:Polygon = null;
+					var innerPoly:Polygon = null;
+					var addPoly:Polygon = null;
+					var plumeGraphic:Graphic;
+					
+					var currentDate:Date = new Date();
+					currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+					var type:String = p.toString();
+					var attrs:Object = { 
+						INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+							FOOTPRINT_SOURCE: m_fileReference2.name,
+							CREATE_DATE: currentDate,
+							USER_FLAG: "PENDING"
+					};
+					//only add outter rings - do not add inner rings! 
+					if (outterRing.length()>0)
+					{
+						var outterCoords:XMLList = outterRing.children().children().(name().localName=="coordinates");
+						//Alert.show("outter=" + outterCoords.toString());
+						outterPoly = buildPolyFromCoords(outterCoords[0]) as Polygon;
+						plumeGraphic = new Graphic(outterPoly,null,attrs);
+						unionPolys.push(plumeGraphic.geometry);
+						//addCordonedFacilities(outterPoly);
+						addFeatureToFeatureLayer(plumeLayer,plumeGraphic,plumeGraphic.attributes);
+					}
+				}
+				
+				//adding cordoned facilities all at once causes problems
+				//due to timing with asynchronous calls and the feature layer
+				//not getting updated in time to detect if a facility has
+				//already been added.  so instead, union all plumes together
+				//and call add cordoned facilities function once
+				//Alert.show(unionPolys.length.toString());
+				if (unionPolys.length>0){
+					geometryService.union(unionPolys, new AsyncResponder(unionResult,onFault));
+					
+					function unionResult(result:Geometry, token:Object = null):void
+					{
+						unionPlume = result as Polygon;
+						//Alert.show(unionPlume.extent.toString());
+						if (cbAddBuildings.selected)
+							addCordonedFacilities(unionPlume);
+					}
+					
+					function onFault(info:Object, token:Object = null):void
+					{
+						Alert.show(info.faultString + "\n\n" + info.faultDetail, "Plume Fault " + info.faultCode);
+					}
+					
+				}
+				
+			}
+			
+			public function loadShapefile_clickHandler():void
+			{
+				m_fileReference = new FileReference();
+				m_fileReference.addEventListener(Event.SELECT, selectHandler);
+				m_fileReference.addEventListener(Event.CANCEL, cancelHandler);
+				m_fileReference.browse([new FileFilter("Zip Files", "*.zip")]);
+				
+			}
+			
+			private function selectHandler(event:Event):void
+			{
+				m_fileReference.addEventListener(Event.COMPLETE, completeHandler);
+				m_fileReference.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
+				m_fileReference.load();
+				
+			}
+			
+			private function cancelHandler(event:Event):void
+			{
+				m_fileReference = null;
+			}
+			
+			private function completeHandler(event:Event):void
+			{
+				var shpByteArray:ByteArray;
+				var dbfByteArray:ByteArray;
+				var prjByteArray:ByteArray;
+				
+				const zipFile:ZipFile =  new ZipFile(m_fileReference.data);                
+				for each (var entry:ZipEntry in zipFile.entries)
+				{
+					const name:String = entry.name.toLowerCase();
+					// trace( name );
+					if (name.indexOf("__macosx") > -1)
+					{
+						continue;
+					}
+					if (name.indexOf(".shp") === name.length - 4)
+					{
+						shpByteArray = zipFile.getInput(entry);
+					}
+					if (name.indexOf(".dbf") === name.length - 4)
+					{
+						dbfByteArray = zipFile.getInput(entry);
+					}
+					if (name.indexOf(".prj") === name.length - 4)
+					{
+						prjByteArray = zipFile.getInput(entry);
+					}
+				}
+				var sref:SpatialReference = new SpatialReference();
+				if (prjByteArray && prjByteArray.length > 0)
+				{
+					var wkt:String = prjByteArray.readUTFBytes(prjByteArray.length);
+					sref.wkt = wkt;
+				}
+				
+				if (shpByteArray && shpByteArray.length > 0 && dbfByteArray && dbfByteArray.length > 0)
+				{
+					loadShapefile(shpByteArray, dbfByteArray, sref);
+				}
+				m_fileReference = null;
+			}
+			
+			private function ioErrorHandler(event:IOErrorEvent):void
+			{
+				m_fileReference = null;
+			}
+			
+			private function loadShapefile(shpByteArray:ByteArray, dbfByteArray:ByteArray, sref:SpatialReference):void
+			{
+				var index:int = 0;
+				var plumeGraphicArray:Array = new Array();
+				var plumeGeomArray:Array = new Array();
+				
+				var currentDate:Date = new Date();
+				currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
+				
+				const shpReader:ShpReader = new ShpReader(shpByteArray);
+				const dbfHeader:DbfHeader = new DbfHeader(dbfByteArray);
+				/* WC 7.21.2010 - get shapefile type */
+				var shapeType:int = shpReader.readShpType();
+				while (shpReader.hasMore()) {
+					if (shapeType == 5) { //only accept polygons for plumes....
+						/* WC 7.21.2010 - shapefile = polygon */
+						var shpPolygon:ShpPolygon = shpReader.readShpPolygon();
+						
+						var attrs:Object = { 
+							INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
+							FOOTPRINT_SOURCE: m_fileReference.name,
+							CREATE_DATE: currentDate,
+							USER_FLAG: "PENDING"
+						}
+						var poly:Polygon = shpPolygon.toPolygon();
+						poly.spatialReference = sref;
+						//Alert.show((map.spatialReference==sref).toString());
+						//Alert.show(map.spatialReference.wkt);
+						var plumeGraphic:Graphic = new Graphic(poly,null,attrs);
+						plumeGraphicArray.push(plumeGraphic);
+						plumeGeomArray.push(poly);
+					}
+				}
+				
+				//reproject the geometries
+				if (plumeGeomArray.length>0)
+				{
+					var geomSvc:GeometryService = new GeometryService(geometryService.url);
+					var projectParams:ProjectParameters = new ProjectParameters();
+					projectParams.geometries = plumeGeomArray;
+					projectParams.outSpatialReference = map.spatialReference;
+					//geomSvc.project(plumeGeomArray,plumeLayer.spatialReference, new AsyncResponder(projectCompleteHandler, onFault));
+					geomSvc.project(projectParams,new AsyncResponder(projectCompleteHandler, onFault));
+					
+					function projectCompleteHandler(result:Array, token:Object = null):void
+					{
+						for (var i:int = 0; i<result.length; i++)
+						{
+							var thisGraphic:Graphic = plumeGraphicArray[i] as Graphic;
+							thisGraphic.geometry = result[i] as Geometry;
+							//trace(thisGraphic.geometry);
+							addFeatureToFeatureLayer(plumeLayer,thisGraphic,thisGraphic.attributes);
+						}
+					}
+					
+					function onFault(info:Object, token:Object = null):void
+					{
+						Alert.show(info.faultString + "\n\n" + info.faultDetail, "Plume Reproject Fault " + info.faultCode);
+					}
+				}
+				
+				if (plumeGraphicArray.length>0)
+				{
+					//get geoms from projected graphis array
+					var unionPolys:Array = new Array();
+					var unionPlume:Polygon = null;
+					for (var x:int=0; x<plumeGraphicArray.length; x++)
+					{
+						unionPolys.push(plumeGraphicArray[0].geometry);
+					}
+					
+					//adding cordoned facilities for multiple plumes once causes problems
+					//due to timing with asynchronous calls and the feature layer
+					//not getting updated in time to detect if a facility has
+					//already been added.  so instead, union all plumes together
+					//and call add cordoned facilities function once
+					geomSvc.union(unionPolys, new AsyncResponder(unionResult,onFault2));
+					
+					function unionResult(result:Geometry, token:Object = null):void
+					{
+						unionPlume = result as Polygon;
+						if (cbAddBuildings.selected)
+							addCordonedFacilities(unionPlume);
+					}
+					
+					function onFault2(info:Object, token:Object = null):void
+					{
+						Alert.show(info.faultString + "\n\n" + info.faultDetail, "Plume Fault " + info.faultCode);
+					}
+				}
+				
+				
+				//Alert.show("\nThe shapefile " + m_fileReference.name + " has been uploaded successfully.");
+				showState("homeState");
+			}
+			
+			private function toolAddPlume(event:MouseEvent):void
+			{
+				if (currentIncidentGraphic)
+					showState("addPlumeState");
+				else
+					Alert.show("You must have an active incident to upload a plume.  Click on an incident to activate.");
+			}
+
+			
+			
+			protected function projectCompleteHandler(event:GeometryServiceEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+			}
+			
+			protected function map_mapClickHandler(event:MapMouseEvent):void
+			{
+				if (selectedGraphic != null)
+				{
+					(selectedGraphic.parent as FeatureLayer).applyEdits(null, [ selectedGraphic ], null);
+					map.removeEventListener(MapMouseEvent.MAP_CLICK, map_mapClickHandler);
+					editTool.deactivate();
+				}
+			}
+			
+			protected function editTool_graphicsMoveStopHandler(event:EditEvent):void
+			{
+				applyEdits(event.graphics[0]);
+				editTool.deactivate();
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<esri:GeometryService id="geometryService"
+							  url="http://afsoc01/ArcGIS/rest/services/Geometry/GeometryServer"
+							  bufferComplete="bufferCompleteHandler(event)"/>
+		
+		<esri:EditTool id="editTool" map="{map}" graphicsMoveStop="editTool_graphicsMoveStopHandler(event)" />
+		
+		<s:GlowFilter id="glowFilter"
+					  alpha="0.8"
+					  color="0xFFFF00"
+					  strength="20"/>
+		
+		<fx:Component id="inlineEditor">
+			<mx:ComboBox >
+				<mx:dataProvider>
+					<fx:String>CORDONED</fx:String>
+					<fx:String>NOTIFIED</fx:String>
+					<fx:String>ALL_CLEAR</fx:String>
+					<fx:String>EVACUATED</fx:String>
+					<fx:String>SHELTER</fx:String>
+				</mx:dataProvider>
+			</mx:ComboBox>
+		</fx:Component>
+		
+		
+	</fx:Declarations>
+	
+	<viewer:WidgetTemplate id="wTemplate"
+						   width="420" height="260"
+						   closed="widgetClosedHandler(event)"
+						   minHeight="260"
+						   minWidth="300"
+						   open="widgetOpenedHandler(event)">
+		<s:Group id="homeState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.homeState="true">
+			<s:VGroup id="homeVGroup"
+					  width="100%" height="100%"
+					  gap="10">
+				<s:Line width="100%" alpha="0.6">
+					<s:stroke >
+						<s:SolidColorStroke color="0xFFFFFF" />
+					</s:stroke>
+				</s:Line>
+				<s:HGroup id="homeToolsHGroup"
+						  width="90%"
+						  gap="5" 
+						  left="10"
+						  horizontalAlign="center">
+					<s:Label text="Incident Map Tools:" verticalAlign="middle" />
+					<s:Image id="toolImgAddIncident" 
+							 name="{DrawTool.MAPPOINT}"
+							 buttonMode="true"
+							 click="activateTool(event)"
+							 rollOut="toolRollOutHandler(event)"
+							 rollOver="toolRollOverHandler(event)"
+							 source="{imgAddIncidentClass}"
+							 toolTip="Add New Incident"
+							 useHandCursor="true"/>
+					<!--<s:Image id="toolImgAddCordon"
+					buttonMode="true"
+					click="activateTool(event)"
+					rollOut="toolRollOutHandler(event)"
+					rollOver="toolRollOverHandler(event)"
+					source="{imgAddCordonClass}"
+					toolTip="Add New Cordon"
+					useHandCursor="true"/>-->
+					<s:Image id="toolImgAddFacil"
+							 name="{DrawTool.EXTENT}"
+							 buttonMode="true"
+							 click="activateTool(event)"
+							 rollOut="toolRollOutHandler(event)"
+							 rollOver="toolRollOverHandler(event)"
+							 source="{imgAddFacilClass}"
+							 toolTip="Add Cordoned Buildings"
+							 useHandCursor="true"/>
+					<s:Image id="toolImgEditFacil"
+							 name="{DrawTool.EXTENT}"
+							 buttonMode="true"
+							 click="activateTool(event)"
+							 rollOut="toolRollOutHandler(event)"
+							 rollOver="toolRollOverHandler(event)"
+							 source="{imgEditFacilClass}"
+							 toolTip="Edit Multiple Buildings' Status"
+							 useHandCursor="true"/>
+					<s:Image id="toolImgAddBlockade"
+							 name="{DrawTool.MAPPOINT}"
+							 buttonMode="true"
+							 click="activateTool(event)"
+							 rollOut="toolRollOutHandler(event)"
+							 rollOver="toolRollOverHandler(event)"
+							 source="{imgAddBlockadeClass}"
+							 toolTip="Add New Blockade"
+							 useHandCursor="true"/>
+					<s:Image id="toolImgAddRoute"
+							 name="{DrawTool.POLYLINE}"
+							 buttonMode="true"
+							 click="activateTool(event)"
+							 rollOut="toolRollOutHandler(event)"
+							 rollOver="toolRollOverHandler(event)"
+							 source="{imgAddRouteClass}"
+							 toolTip="Add New Safe Route"
+							 useHandCursor="true"/>
+					<s:Image id="toolImgAddPlume"
+							 buttonMode="true"
+							 click="toolAddPlume(event)"
+							 rollOut="toolRollOutHandler(event)"
+							 rollOver="toolRollOverHandler(event)"
+							 source="{imgAddPlumeClass}"
+							 toolTip="Add New Plume from Shapefile"
+							 useHandCursor="true"/>
+				</s:HGroup>
+				<s:Line width="100%" alpha="0.6">
+					<s:stroke >
+						<s:SolidColorStroke color="0xFFFFFF" />
+					</s:stroke>
+				</s:Line>
+				<s:HGroup>
+					<s:Label text="Add Event by Bldg: " />
+					<!--<s:ComboBox id="cbInstall" change="cbInstall_changeHandler(event)" width="60" selectedIndex="0">
+						<s:dataProvider>
+							<mx:ArrayList>
+								<fx:String>CZQZ</fx:String>
+								<fx:String>FTEV</fx:String>
+							</mx:ArrayList>
+						</s:dataProvider>
+					</s:ComboBox>-->
+					<s:ComboBox id="cbBuildings" dataProvider="{buildings}" width="80" />
+					<s:Button id="btnAddEventByBuilding" label="Add" click="btnAddEventByBuilding_clickHandler(event)" />
+				</s:HGroup>
+				<s:HGroup visible="{fdSupported}" includeInLayout="{fdSupported}">
+					<s:Label text="Add Event by ACESFD Event: " />
+					<s:ComboBox id="cbAddAcesFd" width="130" />
+					<s:Button id="btnAddEventByAcesFD" label="Add" click="btnAddEventByAcesFD_clickHandler(event)" />
+				</s:HGroup>
+				<s:Line width="100%" alpha="0.6">
+					<s:stroke >
+						<s:SolidColorStroke color="0xFFFFFF" />
+					</s:stroke>
+				</s:Line>
+				<s:HGroup>
+					<s:Label text="Inactive Events: " />
+					<s:ComboBox id="cbInactiveEvents" dataProvider="{inactiveEvents}" width="210" />
+					<s:Button id="btnActivateEvent" label="Activate" click="btnActivateEvent_clickHandler(event)" />
+				</s:HGroup>
+				<s:Line width="100%" alpha="0.6">
+					<s:stroke >
+						<s:SolidColorStroke color="0xFFFFFF" />
+					</s:stroke>
+				</s:Line>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="editIncidentState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.editIncidentState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center">
+				<s:HGroup>
+					<s:Label text="Incident Name:" width="100" textAlign="right" />
+					<s:TextInput id="txtIncidentName" width="227" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Label text="Incident Details:" width="100" textAlign="right" />
+					<s:TextArea id="txtIncidentDetails" editable="true" height="60" width="227" />
+				</s:HGroup>
+				<s:HGroup visible="{fdSupported}" includeInLayout="{fdSupported}">
+					<s:Label text="ACES FD Event:" width="100" textAlign="right" />
+					<s:ComboBox id="cbEditAcesFd" width="227" />
+				</s:HGroup>
+				<mx:TextArea id="taEventLog" visible="false" 
+							 includeInLayout="false" 
+							 color="0x0099CC" focusAlpha="0"
+							 textAlign="center" textDecoration="underline" 
+							 width="100%" height="20" 
+							 borderVisible="false" 
+							 contentBackgroundAlpha="0" 
+							 selectable="false"/>
+				<s:HGroup>
+					<s:Label text="Status:" width="100" textAlign="right" />
+					<s:ComboBox id="cbStatus" width="227" dataProvider="{statusCollection}" selectedIndex="0" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Button id="btnEditIncident" label="Submit" click="btnEditIncident_clickHandler(event)" />
+					<s:Button label="Cancel" click="showState('homeState')" />
+				</s:HGroup>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="editCordonState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.editCordonState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center">
+				<s:HGroup>
+					<s:Label text="Cordon Name:" width="140" textAlign="right" />
+					<s:TextInput id="txtCordonLabel" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Label text="Cordon Size:" width="140" textAlign="right" />
+					<s:TextInput id="txtCordonSize" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Label text="Primary:" width="140" textAlign="right" />
+					<s:CheckBox id="chkPrimary" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Button id="btnAddCordon" label="Submit" click="btnAddCordon_clickHandler(event)" />
+					<s:Button label="Cancel" click="showState('homeState')" />
+				</s:HGroup>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="editFafcilityStatusState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.editFafcilityStatusState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center">
+				<s:HGroup>
+					<s:Label text="Selected Facil(s):" width="100" textAlign="right" />
+					<s:TextArea id="lblSelectedFacils" width="200" editable="false" height="60" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Label text="Faciliity Status:" width="100" textAlign="right" />
+					<s:ComboBox id="cboFacilStatus" width="200"
+								labelField="label" 
+								requireSelection="true"
+								selectedIndex="0"/>
+				</s:HGroup>
+				<!--<s:HGroup>
+				<s:Label id="lblFacStatusLabel" text="Status:" width="100" textAlign="right" />
+				<s:HGroup width="200">
+				<s:Label id="lblFacilStatus" textAlign="left" />
+				<s:Button id="btnActivateFacilStatus" label="Activate" click="btnActivateFacilStatus_clickHandler(event)" />
+				</s:HGroup>
+				</s:HGroup>-->
+				<s:HGroup>
+					<s:Button id="btnSaveFacilStatus" label="Submit" click="btnSaveFacilStatus_clickHandler(event)" />
+					<s:Button label="Cancel" click="showState('homeState')" />
+				</s:HGroup>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="editBlockadeState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.editBlockadeState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center">
+				<s:HGroup>
+					<s:Label text="Blockade Label:" width="140" textAlign="right" />
+					<s:TextInput id="txtBlockadeLabel" width="200" />
+				</s:HGroup>
+				<s:HGroup>
+					<s:Label text="Blockade Type:" width="140" textAlign="right" />
+					<s:ComboBox id="cboBlockadeType" 
+								width="200"
+								labelField="label" 
+								requireSelection="true"
+								selectedIndex="0"/>
+				</s:HGroup>
+				<s:HGroup>
+					<s:Label text="Details:" width="140" textAlign="right" />
+					<s:TextArea id="txtBlockadeDetails" width="200" height="60" />
+				</s:HGroup>
+				<!--<s:HGroup>
+				<s:Label text="Status:" width="140" textAlign="right" />
+				<s:HGroup width="200">
+				<s:Label id="lblBlockadeStatus" textAlign="left" />
+				<s:Button id="btnActivateBlockade" label="Activate" click="btnActivateBlockade_clickHandler(event)" />
+				</s:HGroup>
+				</s:HGroup>-->
+				<s:HGroup>
+					<s:Button id="btnSaveBlockade" label="Submit" click="btnSaveBlockade_clickHandler(event)" />
+					<s:Button label="Cancel" click="showState('homeState')" />
+				</s:HGroup>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="buildingsReportState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.buildingsReportState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center" >
+				<s:Button label="Return to Home Screen" click="resetEditBuildings()" />
+				<mx:DataGrid id="dgBuildings" editable="true" itemEditBegin="dgBuildings_itemEditBegin(event)" itemEditEnd="dgBuildings_itemEditEnd(event)" height="110" width="200">
+					<mx:columns>
+						<mx:DataGridColumn dataField="FACIL_ID" headerText="Facility" editable="false" />
+						<mx:DataGridColumn dataField="EVENT_STATUS" headerText="Status" editable="true"
+										   editorDataField="selectedItem"
+										   itemEditor="{inlineEditor}" width="120">
+							
+						</mx:DataGridColumn>
+					</mx:columns>
+				</mx:DataGrid>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="blockadesReportState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.blockadesReportState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center" >
+				<s:Button label="Return to Home Screen" click="resetEditBlockades()" />
+				<mx:DataGrid id="dgBlockades" 
+							 variableRowHeight="true" 
+							 editable="true"  
+							 itemEditBegin="dgBlockades_itemEditBegin(event)" 
+							 itemEditEnd="dgBlockades_itemEditEnd(event)" 
+							 height="110"
+							 width="100%">
+					<mx:columns>
+						<mx:DataGridColumn dataField="ID" headerText="Name" editable="true" />
+						<mx:DataGridColumn dataField="ROADS" headerText="Roads" editable="false" />
+						<mx:DataGridColumn dataField="COMMENTS" headerText="Details" editable="true" wordWrap="true" />
+						<mx:DataGridColumn dataField="STATUS" headerText="Blockade Type" editable="true"
+										   editorDataField="selectedItem" width="150">
+							<mx:itemEditor>
+								<fx:Component>
+									<mx:ComboBox dataProvider="{outerDocument.blockadeTypes}" />
+								</fx:Component>
+							</mx:itemEditor>
+						</mx:DataGridColumn>
+					</mx:columns>
+				</mx:DataGrid>
+			</s:VGroup>
+		</s:Group>
+		
+		<s:Group id="addPlumeState"
+				 width="100%" height="100%"
+				 visible="false"
+				 visible.addPlumeState="true">
+			<s:VGroup width="100%" height="100%" horizontalAlign="center" >
+				
+				<s:CheckBox id="cbAddBuildings" label="Add Cordoned Buildings when Adding Polygon" selected="false" 
+							toolTip="Selecting this option will add buildings that fall within the imported polygon(s) as CORDONED buildings."/>
+				
+				<s:Button label="Load Plume Shapefile (ZIP)..." click="loadShapefile_clickHandler()"/>
+				<s:Button label="Load Plume KML..." click="loadKMLfile_clickHandler()"/>
+				
+				<s:Image id="toolImgDrawCordon"
+						 name="{DrawTool.POLYGON}"
+						 buttonMode="true"
+						 click="activateTool(event)"
+						 rollOut="toolRollOutHandler(event)"
+						 rollOver="toolRollOverHandler(event)"
+						 source="{imgDrawCordonClass}"
+						 toolTip="Draw Plume/Cordon"
+						 useHandCursor="true"/>
+				
+				<s:Button label="Cancel" click="showState('homeState')" />
+				
+			</s:VGroup>
+		</s:Group>
+		
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>

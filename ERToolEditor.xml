@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<!-- Ignored if geometry service is set in main config.xml -->
+    <geometryservice>https://maps.hurlburt.af.mil/ArcGIS/rest/services/Geometry/GeometryServer</geometryservice>
+    
+    <!-- CIP LAYERS -->
+    <buildingslayerurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/AFSOC_FGB/MapServer/208</buildingslayerurl>
+    <!-- Feature that contains road names -->
+    <roadslayerurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/AFSOC_FGB/MapServer/235</roadslayerurl>
+    <roadnamefield>ROAD_NAME</roadnamefield>
+    
+    <!-- ERTool Admin Layers/Services -->
+    <erserviceurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/MapServer</erserviceurl>
+    <erincidentpointurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/0</erincidentpointurl>
+    <erblockadesurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/1</erblockadesurl>
+    <eralohafootprinturl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/2</eralohafootprinturl>
+    <ersaferouteurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/3</ersaferouteurl>
+    <erfacilitystatusurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/4</erfacilitystatusurl>
+    <ercordonpolyurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/5</ercordonpolyurl>
+    
+    <!-- View-Only Map Service URL -->
+    <erviewerserviceurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ert_readonly_10/MapServer</erviewerserviceurl>
+    
+    <!-- ACESFD INFO -->
+    <acesfdsupported>false</acesfdsupported>
+    <acesfdurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/ER_Tool_Admin/FeatureServer/6</acesfdurl>
+    
+    <!-- each blockade should have a corresponding symbology in MXD based on the BLOCKADES.STATUS field -->
+    <blockades>
+    	<blockade type="ECP" description="Entry Control Pt" />
+    	<blockade type="AMBULANCE" description="Ambulance" />
+    	<blockade type="BARRICADE" description="Barricade" />
+    	<blockade type="FIRE TRUCK" description="Fire Truck" />
+    	<blockade type="INCIDENT_COMMANDER" description="Incident Commander" />
+    	<blockade type="TCP_ESTABLISHED" description="Traffic Control Pt (Established)" />
+    	<!-- DO NOT REMOVE TCP_PENDING!! -->
+    	<blockade type="TCP_PENDING" description="Traffic Control Pt (Pending)" />
+    </blockades>
+    
+    <defaultcordonsize>500</defaultcordonsize>
+    
+    <!-- distance that gets added to map point for a spatial query -->
+    <pointbuffer>20</pointbuffer>
+  
+    <!-- URL to ACESFD Event Log -->
+    <!-- string gets concatenated with EVENT_YR + "_" + EVENT_NBR as ACESFD_ID -->
+    <aceseventlogurl>https://maps.hurlburt.af.mil/ACESFD_EventLog/Default.aspx?ACESFD_ID=</aceseventlogurl>
+	
+</configuration>

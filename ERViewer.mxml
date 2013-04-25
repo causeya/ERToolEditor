@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:esri="http://www.esri.com/2008/ags"
+				   xmlns:viewer="com.esri.viewer.*"
+				   widgetConfigLoaded="init()">
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.FeatureSet;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.components.supportClasses.InfoWindow;
+			import com.esri.ags.events.MapMouseEvent;
+			import com.esri.ags.geometry.Extent;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.geometry.Polygon;
+			import com.esri.ags.geometry.Polyline;
+			import com.esri.ags.layers.ArcGISDynamicMapServiceLayer;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.symbols.SimpleFillSymbol;
+			import com.esri.ags.symbols.SimpleLineSymbol;
+			import com.esri.ags.symbols.SimpleMarkerSymbol;
+			import com.esri.ags.tasks.QueryTask;
+			import com.esri.ags.tasks.supportClasses.Query;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.controls.Alert;
+			import mx.rpc.AsyncResponder;
+			import mx.rpc.events.ResultEvent;
+			
+			[Bindable]
+			[Embed("assets/images/w_close.png")]
+			public var imgCloseButton:Class;
+			
+			private var erViewerServiceUrl:String;
+			private var erIncidentPointURL:String;
+			private var erBlockadesURL:String;
+			private var bNumsServiceURL:String;
+			
+			private var incidentService:ArcGISDynamicMapServiceLayer;
+			private var bNumsService:ArcGISDynamicMapServiceLayer;
+			
+			
+			
+			private var acesEventLogUrl:String;
+			
+			[Bindable]
+			private var timerFreq:Number = 5;
+			
+			private var pointBuffer:Number;
+			
+			private var timer:Timer = new Timer(timerFreq * 1000,0);
+			
+			public var erViewerGraphicsLayer:GraphicsLayer = new GraphicsLayer();
+			
+			private function init():void
+			{
+				if (configXML)
+				{
+					if (configXML.erviewerserviceurl.length() > 0)
+						erViewerServiceUrl = configXML.erviewerserviceurl;
+					
+					if (configXML.buildingnumbersurl.length() > 0)
+						bNumsServiceURL = configXML.buildingnumbersurl;
+					
+					if (configXML.erincidentpointurl.length() > 0)
+						erIncidentPointURL = configXML.erincidentpointurl;
+					
+					if (configXML.erblockadesurl.length() > 0)
+						erBlockadesURL = configXML.erblockadesurl;
+					
+					if (Number(configXML.pointbuffer) > 0)
+						pointBuffer = Number(configXML.pointbuffer);
+					
+					if (configXML.aceseventlogurl.length() > 0)
+						acesEventLogUrl = configXML.aceseventlogurl;
+				}
+				
+				incidentService = new ArcGISDynamicMapServiceLayer();
+				if (erViewerServiceUrl!=null)
+					incidentService.url = erViewerServiceUrl;
+				
+				bNumsService = new ArcGISDynamicMapServiceLayer();
+				if (bNumsServiceURL!=null)
+					bNumsService.url = bNumsServiceURL;
+				bNumsService.name = "Building Numbers";
+				
+				incidentService.name = "ER Tool (View Only)";
+				map.addLayer(incidentService);
+				
+				//map.addLayer(bNumsService);
+				
+				timer.addEventListener(TimerEvent.TIMER,refreshService);
+				timer.start();
+				
+				erViewerGraphicsLayer.name = "ER Viewer Graphics";
+				map.addLayer(erViewerGraphicsLayer);
+				
+				map.addEventListener(MapMouseEvent.MAP_CLICK,getInfo);
+			}
+			
+			private function refreshService(event:TimerEvent):void 
+			{
+				incidentService.refresh();
+				//trace ("incident URL: " + erViewerServiceUrl);
+			}
+			
+			private function getInfo(event:MapMouseEvent):void
+			{
+				var clickLocation:MapPoint = event.mapPoint;
+				var queryGeom:Extent = new Extent (clickLocation.x - pointBuffer, clickLocation.y - pointBuffer, clickLocation.x + pointBuffer, clickLocation.y + pointBuffer);
+				
+				//we really only need infowindows for incident point and blockades
+				//so do a query for both and return graphics to apply infowindow to.
+				
+				var queryIncidentTask:QueryTask = new QueryTask(erIncidentPointURL);
+				queryIncidentTask.useAMF = false;
+				var incidentQuery:Query = new Query();
+				incidentQuery.outFields = ["*"];
+				incidentQuery.geometry = queryGeom;
+				incidentQuery.returnGeometry = true;
+				queryIncidentTask.execute(incidentQuery, new AsyncResponder(onIncidentQueryResult, onFault));
+				
+				function onIncidentQueryResult(featureSet:FeatureSet, token:Object = null):void
+				{
+					for each (var myGraphic:Graphic in featureSet.features)
+					{
+						myGraphic.symbol = infoSymbol1;
+						var cDate:Date = new Date();
+						cDate.setTime(Number(myGraphic.attributes["CREATE_DATE"]));
+						cDate.setTime(cDate.getTime() + cDate.getTimezoneOffset()*60*1000);
+						var html:String = "<b>Incident Name: </b>" + myGraphic.attributes["INCIDNT_NAME"] + "\n"
+							+ "<b>Incident ID: </b>" + myGraphic.attributes["INCIDNT_ID"] + "\n"
+							+ "<b>Create Date: </b>" + cDate.toLocaleString() + "\n"
+							+ "<b>Details: </b>" + myGraphic.attributes["NARRATIVE"] + "\n"
+							+ "<b>ACES-FD Event: </b>" + myGraphic.attributes["ACESFD_ID"] + "\n"
+							+ "<a href='" + acesEventLogUrl + myGraphic.attributes["ACESFD_ID"] + "' target='_blank'>View ACES-FD Event Log</a>";
+						var attrs:Object = {
+							htmlText: html,
+							heading: "Incident Information"
+						};
+						myGraphic.attributes = attrs;
+						
+						erViewerGraphicsLayer.add(myGraphic);
+						
+					}
+				}
+				
+				var queryBlockadesTask:QueryTask = new QueryTask(erBlockadesURL);
+				queryBlockadesTask.useAMF = false;
+				var blockadeQuery:Query = new Query();
+				blockadeQuery.outFields = ["*"];
+				blockadeQuery.geometry = queryGeom;
+				blockadeQuery.returnGeometry = true;
+				queryBlockadesTask.execute(blockadeQuery, new AsyncResponder(onBlockadeQueryResult, onFault));
+				
+				function onBlockadeQueryResult(featureSet:FeatureSet, token:Object = null):void
+				{
+					for each (var myGraphic:Graphic in featureSet.features)
+					{
+						myGraphic.symbol = infoSymbol1;
+						var cDate:Date = new Date();
+						cDate.setTime(Number(myGraphic.attributes["CREATE_DATE"]));
+						cDate.setTime(cDate.getTime() + cDate.getTimezoneOffset()*60*1000);
+						var html:String = "<b>Blockade Name: </b>" + myGraphic.attributes["ID"] + "\n"
+							+ "<b>Blockade Type: </b>" + myGraphic.attributes["STATUS"] + "\n"
+							+ "<b>Create Date: </b>" + cDate.toLocaleString() + "\n"
+							+ "<b>Roads Affected: </b>" + myGraphic.attributes["ROADS"] + "\n"
+							+ "<b>Details: </b>" + myGraphic.attributes["COMMENTS"];
+						var attrs:Object = {
+							htmlText: html,
+							heading: "Blockade Information"
+						};
+						myGraphic.attributes = attrs;
+						
+						erViewerGraphicsLayer.add(myGraphic);
+						
+					}
+				}
+				
+				function onFault(info:Object, token:Object = null):void
+				{
+					Alert.show(info.faultString + "\n\n" + info.faultDetail, "Load Events Query Fault " + info.faultCode);
+				}
+				
+			}
+			
+			private function button1_clickHandler(event:MouseEvent):void
+			{
+				if (!isNaN(parseFloat(txtRefreshTime.text)))
+				{
+					timerFreq = parseFloat(txtRefreshTime.text);
+					timer.delay = timerFreq * 1000;
+				} else {
+					Alert.show("Value must be not null and numeric!");
+					txtRefreshTime.text = timerFreq.toString();
+				}
+			}
+			
+			private function widgetClosedHandler(event:Event):void
+			{
+				incidentService.visible = false;
+				if (erViewerGraphicsLayer)
+					erViewerGraphicsLayer.visible = false;
+				
+			}
+			
+			private function widgetOpenedHandler(event:Event):void
+			{
+				if (incidentService)
+					incidentService.visible = true;
+				if (erViewerGraphicsLayer)
+					erViewerGraphicsLayer.visible = true;
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<fx:Declarations>
+		<esri:SimpleMarkerSymbol id="graphicMarker" color="0x000000" size="7" alpha="0.5" style="cross">
+			<esri:SimpleLineSymbol color="0x000000" width="2" alpha="1" style="solid" />
+		</esri:SimpleMarkerSymbol>
+		
+		<esri:InfoSymbol id="infoSymbol1">
+			<esri:infoRenderer>
+				<fx:Component>
+					<s:DataRenderer>
+						<fx:Script>
+							<![CDATA[
+								protected function image1_clickHandler(event:MouseEvent):void
+								{
+									outerDocument.erViewerGraphicsLayer.clear();
+								}
+							]]>
+						</fx:Script>
+						
+						<s:VGroup paddingTop="5" paddingLeft="5" paddingBottom="5">
+							<s:HGroup>
+								<s:Label fontSize="16" height="22" verticalAlign="middle" width="220" fontWeight="bold" text="{data.heading}"/>
+								<s:Image source="{outerDocument.imgCloseButton}" click="image1_clickHandler(event)" />
+							</s:HGroup>
+							<mx:TextArea id="textInfoWindowContent" 
+										 width="250" height="120" focusAlpha="0"
+										 borderVisible="false" borderStyle="none" 
+										 contentBackgroundAlpha="0" 
+										 selectable="false"
+										 htmlText="{data.htmlText}"/>
+						</s:VGroup>
+					</s:DataRenderer>
+				</fx:Component>
+			</esri:infoRenderer>
+		</esri:InfoSymbol>
+
+	</fx:Declarations>
+	<viewer:WidgetTemplate id="wTemplate"
+						   width="300" height="80"
+						   closed="widgetClosedHandler(event)"
+						   minHeight="80"
+						   minWidth="300"
+						   open="widgetOpenedHandler(event)">
+		<s:HGroup>
+			<s:Label text="Refresh Time (seconds): " />
+			<s:TextInput id="txtRefreshTime" text="{timerFreq}" width="40" />
+			<s:Button label="Set" click="button1_clickHandler(event)" />
+		</s:HGroup>
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>
