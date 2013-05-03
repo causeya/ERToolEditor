@@ -5,6 +5,7 @@
     
     <!-- CIP LAYERS -->
     <buildingslayerurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/AFSOC_FGB/MapServer/208</buildingslayerurl>
+    <buildingnumberfield>FACIL_ID</buildingnumberfield>
     <!-- Feature that contains road names -->
     <roadslayerurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/AFSOC_FGB/MapServer/235</roadslayerurl>
     <roadnamefield>ROAD_NAME</roadnamefield>

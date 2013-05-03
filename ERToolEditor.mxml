@@ -202,6 +202,7 @@
 			private var saferouteContextMenu:ContextMenu;
 			private var plumeContextMenu:ContextMenu;
 			
+			private var buildingnumberfield:String;
 			private var roadNameField:String;
 			
 			private var defaultCordonSize:Number = 500;
@@ -307,6 +308,9 @@
 					
 					if (configXML.buildingslayerurl.length() > 0)
 						buildingsLayerURL = configXML.buildingslayerurl;
+					
+					if (configXML.buildingnumberfield.length() > 0)
+						buildingnumberfield = configXML.buildingnumberfield;
 					
 					if (configXML.roadslayerurl.length() > 0)
 						roadsLayerURL = configXML.roadslayerurl;
@@ -730,8 +734,8 @@
 				var buildingQueryTask:QueryTask = new QueryTask(buildingsLayerURL);
 				buildingQueryTask.useAMF = false;
 				var bldgQuery:Query = new Query();
-				bldgQuery.outFields = ["FACIL_ID"];
-				bldgQuery.where = "FACIL_ID IS NOT NULL and FACIL_ID<>' ' and FACIL_ID <> 'NO RP' and FACIL_ID <> 'OFFBASE'"//"FACIL_ID IS NOT NULL and REPLACE(FACIL_ID,' ','') is not null" // and upper(INSTALL) ='" + cbInstall.selectedItem.toUpperCase() + "'";
+				bldgQuery.outFields = [buildingnumberfield];
+				bldgQuery.where = buildingnumberfield + " IS NOT NULL and " + buildingnumberfield + " <> ' ' and " + buildingnumberfield + " <> 'NO RP' and " + buildingnumberfield + " <> 'OFFBASE'"//"FACIL_ID IS NOT NULL and REPLACE(FACIL_ID,' ','') is not null" // and upper(INSTALL) ='" + cbInstall.selectedItem.toUpperCase() + "'";
 				bldgQuery.returnGeometry = true;
 				buildingQueryTask.execute(bldgQuery, new AsyncResponder(onBuildingQueryResult, onFault));
 				
@@ -742,7 +746,7 @@
 					for each (var myGraphic:Graphic in featureSet.features)
 					{
 						var poly:Polygon = Polygon(myGraphic.geometry);
-						var listObj:Object = {label:myGraphic.attributes["FACIL_ID"], x:poly.extent.center.x, y:poly.extent.center.y, graphic:myGraphic};
+						var listObj:Object = {label:myGraphic.attributes[buildingnumberfield], x:poly.extent.center.x, y:poly.extent.center.y, graphic:myGraphic};
 						//cbBuildings.dataProvider.addItem(listObj);
 						buildings.addItem(listObj);
 					}
@@ -952,8 +956,8 @@
 					var query:Query = new Query();
 					query.spatialRelationship = Query.SPATIAL_REL_INTERSECTS;
 					query.geometry = geom;
-					query.outFields = ["FACIL_ID"];
-					query.where = "FACIL_ID <> 'NO RP' and FACIL_ID <> 'OFFBASE'"//"FACIL_ID IS NOT NULL and REPLACE(FACIL_ID,' ','') is not null"
+					query.outFields = [buildingnumberfield];
+					query.where = buildingnumberfield + " <> 'NO RP' and " + buildingnumberfield + " <> 'OFFBASE'"//"FACIL_ID IS NOT NULL and REPLACE(FACIL_ID,' ','') is not null"
 					query.returnGeometry = true;
 					queryTask.execute(query, new AsyncResponder(onResult, onFault));
 					
@@ -964,19 +968,19 @@
 							for each (var myGraphic:Graphic in featureSet.features)
 							{
 								//don't add the facility if the facil_id is null
-								var facilID:String = myGraphic.attributes.FACIL_ID;
+								var facilID:String = myGraphic.attributes[buildingnumberfield];
 								if ((facilID!=null)&&(facilID.replace(" ","")!=""))
 								{
 									//before adding the graphic, we have to check to see
 									//if it's already part of this incident
-									var isBldgCordoned:Boolean = isBuildingCordoned(currentIncidentGraphic.attributes.INCIDNT_ID,myGraphic.attributes.FACIL_ID);
+									var isBldgCordoned:Boolean = isBuildingCordoned(currentIncidentGraphic.attributes.INCIDNT_ID,myGraphic.attributes[buildingnumberfield]);
 									if (!isBldgCordoned)
 									{
 										var currentDate:Date = new Date();
 										currentDate.setTime(currentDate.getTime() - currentDate.getTimezoneOffset()*60*1000);
 										var attrs:Object = {
 											INCIDNT_ID: currentIncidentGraphic.attributes.INCIDNT_ID,
-												FACIL_ID: myGraphic.attributes.FACIL_ID,
+												FACIL_ID: myGraphic.attributes[buildingnumberfield],
 												EVENT_STATUS: "CORDONED",
 												CREATE_DATE: currentDate,
 												USER_FLAG: "PENDING"
