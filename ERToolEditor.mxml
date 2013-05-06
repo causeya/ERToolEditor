@@ -208,6 +208,7 @@
 			private var defaultCordonSize:Number = 500;
 			
 			private var pointBuffer:Number;
+			private var srid:Number;
 			
 			private var acesEventLogUrl:String;
 			
@@ -320,6 +321,9 @@
 					
 					if (Number(configXML.pointbuffer) > 0)
 						pointBuffer = Number(configXML.pointbuffer);
+					
+					if (Number(configXML.srid) > 0)
+						srid = Number(configXML.srid);
 					
 					if (configXML.aceseventlogurl.length() > 0)
 						acesEventLogUrl = configXML.aceseventlogurl;
@@ -895,6 +899,12 @@
 					bufferParameters.unit = GeometryService.UNIT_FOOT;
 					//bufferParameters.bufferSpatialReference = new SpatialReference(spatialref);
 					//bufferParameters.outSpatialReference = map.spatialReference;
+					var bufferSR:SpatialReference;
+					if (srid)
+						bufferSR = new SpatialReference(srid);
+					else
+						bufferSR = map.spatialReference;
+					bufferParameters.bufferSpatialReference = bufferSR;
 					bufferParameters.bufferSpatialReference = map.spatialReference; //map.spatialReference;
 					bufferParameters.outSpatialReference = map.spatialReference;
 					geometryService.buffer(bufferParameters);

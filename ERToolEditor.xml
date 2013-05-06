@@ -3,6 +3,10 @@
 	<!-- Ignored if geometry service is set in main config.xml -->
     <geometryservice>https://maps.hurlburt.af.mil/ArcGIS/rest/services/Geometry/GeometryServer</geometryservice>
     
+    <!-- This is the Spatial Reference ID (Well-Known ID) of the native projection/coordinate system for the base -->
+    <!-- Projected Coord. System WKID Reference: http://resources.arcgis.com/en/help/rest/apiref/index.html?pcs.html -->
+    <srid></srid>
+    
     <!-- CIP LAYERS -->
     <buildingslayerurl>https://maps.hurlburt.af.mil/ArcGIS/rest/services/AFSOC_FGB/MapServer/208</buildingslayerurl>
     <buildingnumberfield>FACIL_ID</buildingnumberfield>
